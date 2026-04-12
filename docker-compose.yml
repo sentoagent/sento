@@ -1,0 +1,46 @@
+# Sentō — Docker Compose example
+# Run: docker compose up -d
+# Multiple agents: add more services below
+
+services:
+  agent:
+    build: .
+    container_name: sento-agent
+    environment:
+      - AGENT_NAME=myagent
+      - CLAUDE_TOKEN=${CLAUDE_TOKEN}        # Required: sk-ant-oat01-...
+      - BOT_TOKEN=${BOT_TOKEN}              # Required: Discord/Telegram/Slack bot token
+      - CHANNEL_TYPE=discord                # discord, telegram, slack, imessage
+      - SERVER_ID=${SERVER_ID}              # Discord server ID (listens to all channels)
+      # - CHANNEL_IDS=123,456               # Or specific channel IDs (comma-separated)
+      - GEMINI_KEY=${GEMINI_KEY}            # Optional: for memory embeddings
+      - AGENT_ROLE=General-purpose assistant
+      - AGENT_PERSONALITY=Chill, helpful, keeps it real
+      - AGENT_CREATOR=John Smith
+      - AGENT_TIMEZONE=America/New_York
+    volumes:
+      - ./data/workspace:/root/workspace     # Persists CLAUDE.md, memory, skills
+      - ./data/claude:/root/.claude           # Persists plugins, settings, channels
+    ports:
+      - "9876:9876"                          # Agent-to-agent comms port
+    restart: always
+
+  # Example: second agent
+  # marketing:
+  #   build: .
+  #   container_name: sento-marketing
+  #   environment:
+  #     - AGENT_NAME=mira
+  #     - CLAUDE_TOKEN=${CLAUDE_TOKEN}
+  #     - BOT_TOKEN=${MARKETING_BOT_TOKEN}
+  #     - CHANNEL_TYPE=discord
+  #     - SERVER_ID=${SERVER_ID}
+  #     - AGENT_ROLE=Marketing assistant
+  #     - AGENT_PERSONALITY=Creative, data-driven, memelord
+  #     - AGENT_CREATOR=Gabriel
+  #   volumes:
+  #     - ./data/mira-workspace:/root/workspace
+  #     - ./data/mira-claude:/root/.claude
+  #   ports:
+  #     - "9877:9876"
+  #   restart: always
