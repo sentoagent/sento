@@ -4,6 +4,8 @@ Agents sent to fight your battles.
 
 Self-improving AI agents that run 24/7. Controlled through Discord, Telegram, Slack, or iMessage. One command to set up. They learn, adapt, and get better over time.
 
+**Works with your Claude subscription (Pro, Max, Team, or Enterprise). No API keys, no per-token billing, no surprise costs.** Other agent frameworks require pay-per-use API keys. Sentō runs on your existing Claude plan — flat rate, unlimited usage.
+
 Built by Gabriel Gil. Powered by Claude Code.
 
 ## Quick Start
@@ -31,7 +33,7 @@ That's it. The interactive setup walks you through everything.
 ## Requirements
 
 - **Node.js 20+**
-- **A Claude plan with API access** (Max, Team, or Enterprise)
+- **A Claude subscription** (Pro, Max, Team, or Enterprise) — no API keys needed, uses your existing plan
 - **A bot token** for your messaging platform (Discord, Telegram, or Slack)
 
 ## Commands
