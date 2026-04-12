@@ -9,7 +9,7 @@ Built by Gabriel Gil. Powered by Claude Code.
 ## Quick Start
 
 ```bash
-npx sento init
+npx sentoagent init
 ```
 
 That's it. The interactive setup walks you through everything.
@@ -38,37 +38,37 @@ That's it. The interactive setup walks you through everything.
 
 ```bash
 # Setup
-npx sento init           # Set up a new agent
-npx sento update         # Update Claude Code, plugins, and patches
+npx sentoagent init           # Set up a new agent
+npx sentoagent update         # Update Claude Code, plugins, and patches
 
 # Monitor
-npx sento status         # Check if your agent is running and healthy
-npx sento logs           # View agent output (last 30 lines)
-npx sento logs -n 100    # View more lines
-npx sento logs --watchdog # View auto-restart history
+npx sentoagent status         # Check if your agent is running and healthy
+npx sentoagent logs           # View agent output (last 30 lines)
+npx sentoagent logs -n 100    # View more lines
+npx sentoagent logs --watchdog # View auto-restart history
 
 # Configure
-npx sento config         # Change model, tokens, keys, settings
-npx sento channels       # Add/remove Discord channels or servers
+npx sentoagent config         # Change model, tokens, keys, settings
+npx sentoagent channels       # Add/remove Discord channels or servers
 
 # Skills
-npx sento skills         # List installed plugins and custom skills
-npx sento skills install # Install a plugin from the marketplace
-npx sento skills export  # Export a custom skill to share
-npx sento skills import  # Import a skill from another agent
+npx sentoagent skills         # List installed plugins and custom skills
+npx sentoagent skills install # Install a plugin from the marketplace
+npx sentoagent skills export  # Export a custom skill to share
+npx sentoagent skills import  # Import a skill from another agent
 
 # Process Control
-npx sento start          # Start the agent
-npx sento stop           # Stop the agent
-npx sento restart        # Restart the agent
+npx sentoagent start          # Start the agent
+npx sentoagent stop           # Stop the agent
+npx sentoagent restart        # Restart the agent
 
 # Agent-to-Agent Communication
-npx sento pair           # Pair with another agent
-npx sento agents         # List your agent code and paired agents
+npx sentoagent pair           # Pair with another agent
+npx sentoagent agents         # List your agent code and paired agents
 
 # Diagnostics
-npx sento doctor         # Check for issues (12 checks)
-npx sento doctor --fix   # Auto-fix what's possible
+npx sentoagent doctor         # Check for issues (12 checks)
+npx sentoagent doctor --fix   # Auto-fix what's possible
 ```
 
 ## How It Works
