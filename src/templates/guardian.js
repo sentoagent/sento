@@ -49,16 +49,16 @@ function restart() {
   log('Restarting...');
   const o = tm(50);
   if (o) try { fs.writeFileSync(HOME + '/workspace/memory/guardian-restart-' + Date.now() + '.log', o); } catch {}
+  // Always try to kill first, even if we think it's dead (prevents race conditions)
   try { execFileSync('tmux', ['kill-session', '-t', SESSION], { timeout: 5000 }); } catch {}
+  // Wait for kill to take effect, then try again to be sure
   setTimeout(() => {
-    // Double-check no session exists before creating (prevent duplicates)
-    try {
-      const ls = execFileSync('tmux', ['ls'], { encoding: 'utf-8', timeout: 5000 });
-      if (ls.includes(SESSION + ':')) { log('Session already exists. Skipping.'); return; }
-    } catch {}
-    try { execFileSync('tmux', ['new-session', '-d', '-s', SESSION, START], { timeout: 10000 }); log('Restarted'); }
-    catch (e) { log('Failed: ' + e.message); }
-  }, 5000);
+    try { execFileSync('tmux', ['kill-session', '-t', SESSION], { timeout: 5000 }); } catch {}
+    setTimeout(() => {
+      try { execFileSync('tmux', ['new-session', '-d', '-s', SESSION, START], { timeout: 10000 }); log('Restarted'); }
+      catch (e) { log('Failed: ' + e.message); }
+    }, 3000);
+  }, 2000);
 }
 
 function check() {
