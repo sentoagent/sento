@@ -43,6 +43,69 @@ function wh(m) {
 }
 
 function tm(n = 30) { try { return execFileSync('tmux', ['capture-pane', '-t', SESSION, '-p', '-S', '-' + n], { encoding: 'utf-8', timeout: 5000 }); } catch { return null; } }
+
+function checkAndReapplyPatches() {
+  try {
+    const cacheDir = HOME + '/.claude/plugins/cache/claude-plugins-official/discord';
+    if (!fs.existsSync(cacheDir)) return;
+    const versions = fs.readdirSync(cacheDir);
+    for (const ver of versions) {
+      const serverTs = cacheDir + '/' + ver + '/server.ts';
+      if (!fs.existsSync(serverTs)) continue;
+      let content = fs.readFileSync(serverTs, 'utf-8');
+      let patched = false;
+
+      // Guild inbound patch
+      const guildTarget = "const policy = access.groups[channelId]";
+      const guildReplace = "const policy = access.groups[channelId] || (msg.guildId ? access.groups[msg.guildId] : undefined)";
+      if (content.includes(guildTarget) && !content.includes('msg.guildId ? access.groups[msg.guildId]')) {
+        content = content.replace(guildTarget, guildReplace);
+        patched = true;
+      }
+
+      // Guild reply patch
+      const replyTarget = "if (key in access.groups) return ch";
+      const replyReplace = "if (key in access.groups || (ch.guildId && ch.guildId in access.groups)) return ch";
+      if (content.includes(replyTarget) && !content.includes('ch.guildId && ch.guildId in access.groups')) {
+        content = content.replace(replyTarget, replyReplace);
+        patched = true;
+      }
+
+      // Message buffer patch
+      if (content.includes("client.on('messageCreate'") && !content.includes('messageBuffer')) {
+        const old = "client.on('messageCreate', msg => {\\n  if (msg.author.bot) return\\n  handleInbound(msg).catch(e => process.stderr.write(";
+        // Buffer patch is complex — skip auto-patching, just log
+        if (!content.includes('messageBuffer')) {
+          log('Warning: message buffer patch missing. Run sento update.');
+        }
+      }
+
+      if (patched) {
+        fs.writeFileSync(serverTs, content);
+        log('Re-applied Discord patches after update');
+      }
+    }
+    // Also patch external_plugins
+    const extDir = HOME + '/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/discord/server.ts';
+    if (fs.existsSync(extDir)) {
+      let content = fs.readFileSync(extDir, 'utf-8');
+      let patched = false;
+      const guildTarget = "const policy = access.groups[channelId]";
+      const guildReplace = "const policy = access.groups[channelId] || (msg.guildId ? access.groups[msg.guildId] : undefined)";
+      if (content.includes(guildTarget) && !content.includes('msg.guildId ? access.groups[msg.guildId]')) {
+        content = content.replace(guildTarget, guildReplace);
+        patched = true;
+      }
+      const replyTarget = "if (key in access.groups) return ch";
+      const replyReplace = "if (key in access.groups || (ch.guildId && ch.guildId in access.groups)) return ch";
+      if (content.includes(replyTarget) && !content.includes('ch.guildId && ch.guildId in access.groups')) {
+        content = content.replace(replyTarget, replyReplace);
+        patched = true;
+      }
+      if (patched) { fs.writeFileSync(extDir, content); log('Re-applied Discord patches (external_plugins)'); }
+    }
+  } catch (e) { log('Patch check error: ' + e.message); }
+}
 function alive() { try { return execFileSync('tmux', ['ls'], { encoding: 'utf-8', timeout: 5000 }).includes(SESSION); } catch { return false; } }
 
 function restart() {
@@ -57,6 +120,8 @@ function restart() {
     setTimeout(() => {
       try { execFileSync('tmux', ['new-session', '-d', '-s', SESSION, START], { timeout: 10000 }); log('Restarted'); }
       catch (e) { log('Failed: ' + e.message); }
+      // Re-apply Discord patches after restart (Claude Code updates can overwrite them)
+      setTimeout(() => { checkAndReapplyPatches(); }, 10000);
     }, 3000);
   }, 2000);
 }
