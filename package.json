@@ -1,6 +1,6 @@
 {
   "name": "sentoagent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Agents sent to fight your battles. Self-improving AI agents powered by Claude Code.",
   "author": "Gabriel Gil",
   "license": "MIT",
@@ -8,11 +8,26 @@
   "bin": {
     "sento": "./bin/sento.js"
   },
-  "files": ["bin/", "src/", "LICENSE"],
+  "files": [
+    "bin/",
+    "src/",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
-  "keywords": ["ai", "agent", "claude", "vps", "discord", "telegram", "slack", "cli", "automation", "self-improving"],
+  "keywords": [
+    "ai",
+    "agent",
+    "claude",
+    "vps",
+    "discord",
+    "telegram",
+    "slack",
+    "cli",
+    "automation",
+    "self-improving"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/sentoagent/sento"
