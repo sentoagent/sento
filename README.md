@@ -1,5 +1,11 @@
 # Sentō 戦闘
 
+[![npm version](https://img.shields.io/npm/v/sentoagent.svg?color=gold)](https://www.npmjs.com/package/sentoagent)
+[![npm downloads](https://img.shields.io/npm/dm/sentoagent.svg)](https://www.npmjs.com/package/sentoagent)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/node-20%2B-brightgreen.svg)](https://nodejs.org)
+[![GitHub stars](https://img.shields.io/github/stars/sentoagent/sento.svg?style=social)](https://github.com/sentoagent/sento)
+
 Agents sent to fight your battles.
 
 Self-improving AI agents that run 24/7. Controlled through Discord, Telegram, Slack, or iMessage. One command to set up. They learn, adapt, and get better over time.
@@ -15,6 +21,12 @@ npx sentoagent init
 ```
 
 That's it. The interactive setup walks you through everything.
+
+## Demo
+
+<!-- TODO: replace with asciinema cast link and Discord screenshot after recording -->
+
+A 60-second walkthrough of `init` → first message → agent response is coming. In the meantime, the full flow is reproducible from the [Quick Start](#quick-start): run `npx sentoagent init`, pick Discord, paste a bot token, and DM the agent `hi` — the onboarding conversation begins immediately.
 
 ## What It Does
 
@@ -103,14 +115,49 @@ echo "SERVER_ID=your-discord-server-id" >> .env
 docker compose up -d
 ```
 
+> **About `CLAUDE_TOKEN`:** This is your Claude Code **OAuth token** (prefix `sk-ant-oat01-`), not an Anthropic API key. It authenticates Claude Code against your existing Claude subscription — no per-token billing. Get it by running `claude setup-token` locally after signing into Claude Code, or copy it from `~/.claude/.credentials.json`. Treat it like a password.
+
 Multi-agent? Just add more services to `docker-compose.yml`. Each agent gets its own container, volumes, and port.
 
 ## Security
 
 - Credentials are stored in plaintext on disk (`~/.bashrc`, `~/workspace/start-agent.sh`). Only run on a machine you control.
 - The agent runs with `--dangerously-skip-permissions`, giving it full shell access. It can read, write, and delete any file your user account has access to.
-- Anyone who can send messages in the configured channels can instruct the agent. Use Discord's channel permissions or the `allowFrom` config to restrict access.
-- DMs are blocked by default to prevent exploitation.
+- Anyone who can send messages in the configured channels can instruct the agent. Use Discord's channel permissions or the `allowFrom` config (see below) to restrict access.
+- DMs are blocked by default (`dmPolicy: "allowlist"`) to prevent exploitation.
+
+### External Services Contacted
+
+Sentō only makes network calls to:
+
+- **Anthropic** (`api.anthropic.com`) — Claude Code uses your subscription
+- **Your chosen messaging platform** — Discord, Telegram, Slack, or iMessage (Apple) APIs
+- **npm registry** (`registry.npmjs.org`) — on first run, to install the 17 plugins listed in the architecture section
+- **GitHub** (`api.github.com`) — only when you use git operations or install plugins from the marketplace
+- **Context7** (`context7.com`) — only when the agent looks up library documentation
+- **Google Generative Language API** — only if you provide a `GEMINI_KEY` for memory embeddings (optional)
+- **Any URL you ask it to browse** — Playwright opens real web pages on demand
+
+No telemetry. No analytics. Sentō does not phone home. Guardian and Watchdog make zero network calls.
+
+### Restricting who can message the agent
+
+The agent reads an allow-list from `~/.claude/channels/<platform>/access.json`. Example restricting a Discord channel to two user IDs:
+
+```json
+{
+  "dmPolicy": "allowlist",
+  "allowFrom": [],
+  "groups": {
+    "123456789012345678": {
+      "requireMention": false,
+      "allowFrom": ["USER_ID_1", "USER_ID_2"]
+    }
+  }
+}
+```
+
+An empty `allowFrom: []` means "anyone with channel access." Run `npx sentoagent channels` to edit interactively.
 
 ## Disclaimers
 
