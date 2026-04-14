@@ -1,0 +1,16 @@
+{
+  "name": "claude-channel-line",
+  "version": "0.0.1",
+  "license": "MIT",
+  "type": "module",
+  "bin": "./server.ts",
+  "scripts": {
+    "start": "bun install --no-summary && bun server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@line/bot-sdk": "^9.5.0",
+    "hono": "^4.6.0",
+    "@hono/node-server": "^1.13.0"
+  }
+}
