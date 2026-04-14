@@ -28,29 +28,37 @@ Add two new messaging channels to Sentō:
 - `src/steps/configure-channel.js` knows where LINE's two secrets land in
   `.env`, and that WhatsApp uses Baileys creds.json (no install-time token).
 
-## What's NOT done yet
+## LINE plugin status — code-complete, not yet live-tested
 
-The plugin servers themselves are stubs that exit on launch. Selecting LINE
-or WhatsApp from the CLI today will install the plugin scaffolding but the
-agent won't actually be able to send/receive messages on either platform
-until we implement the MCP servers.
+**Done:**
+- [x] stdio MCP server with `list_unread`, `send_message`, `clear_inbox_item` tools
+- [x] Hono webhook receiver on `LINE_WEBHOOK_PORT` (default 8765)
+- [x] Webhook signature verification via `LINE_CHANNEL_SECRET`
+- [x] Pairing flow with 5-char codes (10-min TTL), matches discord's pattern
+- [x] `access.json` schema: `dmPolicy` (pairing default) + `allowFrom` +
+      `groups` + `pending` + `mentionPatterns`
+- [x] Approved-pairings poller — reads `approved/<senderId>` files dropped
+      by the `/line:access` skill, sends "you're paired" confirm
+- [x] Mention gating for groups/rooms — requires bot userId in mentionees
+      array OR regex match from `mentionPatterns`
+- [x] Reply-token expiry fallback — on reply API error, falls back to push
+      with a stderr warning (if `to_id` also provided)
+- [x] `/line:access` skill at `plugins/line/skills/access/SKILL.md`
+- [x] Webhook URL printed prominently during `sento init` with clear
+      reverse-proxy instructions
+- [x] Guardian regex updated to include `← line` + `← whatsapp`
+- [x] `sento doctor` validates LINE token + secret presence, WhatsApp
+      creds.json existence + parse-ability
 
-Specifically pending:
-
-### LINE plugin (`plugins/line/server.ts`)
-
-- [ ] Implement stdio MCP server with the standard tools (`fetch_messages`,
-      `send_message`, `react`, `typing_indicator`)
-- [ ] Stand up Hono webhook receiver on `LINE_WEBHOOK_PORT`
-- [ ] Verify webhook signatures with `LINE_CHANNEL_SECRET`
-- [ ] Implement message buffering (mirror Telegram's 30-90s window)
-- [ ] Implement pairing flow against `~/.claude/channels/line/access.json`
-      (probably reuse Discord's access.json schema verbatim)
-- [ ] Print the webhook URL during `sento init` so the user can paste it
-      into the LINE Console
-- [ ] Document the VPS-vs-local install story (LINE needs a public HTTPS
-      URL, no long-poll fallback)
-- [ ] Test against a real LINE bot
+**Still pending for true production-ready:**
+- [ ] **Actually run the plugin** — I haven't executed `bun install` in the
+      plugin dir, started the server, or sent a real LINE message through
+      it. Code reads correctly but has not been smoke-tested.
+- [ ] Message buffering window (mirror telegram's 30-90s batching)
+- [ ] LINE Flex Messages / sticker / image handling (text only for v1)
+- [ ] Rate limiting on outbound push
+- [ ] Quota tracking (LINE free tier = 500 push/month)
+- [ ] Test against a real LINE Messaging API channel end-to-end
 
 ### WhatsApp plugin (`plugins/whatsapp/server.ts`)
 

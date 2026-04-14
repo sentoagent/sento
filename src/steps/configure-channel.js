@@ -1,8 +1,11 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import chalk from "chalk";
 import { log } from "../utils/logger.js";
 import { renderAccessJson } from "../templates/access-json.js";
+
+const LINE_DEFAULT_PORT = 8765;
 
 const TOKEN_VAR_NAMES = {
   discord: "DISCORD_BOT_TOKEN",
@@ -37,9 +40,13 @@ export async function configureChannel(config) {
   const tokenVar = TOKEN_VAR_NAMES[config.channelType];
   const envLines = [`${tokenVar}=${config.botToken}`];
 
-  // LINE needs both the channel access token AND the channel secret
-  if (config.channelType === "line" && config.lineChannelSecret) {
-    envLines.push(`LINE_CHANNEL_SECRET=${config.lineChannelSecret}`);
+  // LINE needs the channel secret (for webhook signature validation) AND
+  // a webhook port. Default port is 8765 unless the user sets it explicitly.
+  if (config.channelType === "line") {
+    if (config.lineChannelSecret) {
+      envLines.push(`LINE_CHANNEL_SECRET=${config.lineChannelSecret}`);
+    }
+    envLines.push(`LINE_WEBHOOK_PORT=${LINE_DEFAULT_PORT}`);
   }
 
   const envPath = path.join(channelDir, ".env");
@@ -56,4 +63,36 @@ export async function configureChannel(config) {
   }
 
   log.success(`${config.channelType} configured`);
+
+  // LINE has a critical follow-up step the user has to do manually: paste
+  // the webhook URL into the LINE Messaging API console. Print it loudly
+  // so it doesn't get lost in scrollback.
+  if (config.channelType === "line") {
+    const banner = chalk.bold.yellow;
+    const url = chalk.underline(
+      `https://<your-public-host>/line/webhook`
+    );
+    console.log("");
+    console.log(banner("  ┌──────────────────────────────────────────────┐"));
+    console.log(banner("  │  Final manual step: set your LINE webhook    │"));
+    console.log(banner("  └──────────────────────────────────────────────┘"));
+    console.log(
+      `  1. Open ${chalk.cyan("https://developers.line.biz")} → your provider → your channel`
+    );
+    console.log(`  2. Messaging API tab → Webhook settings → ${chalk.bold("Edit")}`);
+    console.log(`  3. Paste:  ${url}`);
+    console.log(
+      `     ${chalk.dim(
+        `(replace <your-public-host> with your VPS domain — Sentō listens on port ${LINE_DEFAULT_PORT})`
+      )}`
+    );
+    console.log(`  4. Toggle ${chalk.bold("Use webhook")} to ON, then ${chalk.bold("Verify")}`);
+    console.log("");
+    console.log(
+      `  ${chalk.dim(
+        `Behind a reverse proxy? Forward https://<host>/line/webhook → http://localhost:${LINE_DEFAULT_PORT}/line/webhook`
+      )}`
+    );
+    console.log("");
+  }
 }
