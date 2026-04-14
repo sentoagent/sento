@@ -63,7 +63,7 @@ export async function setupWorkspace(config) {
       const filtered = existing.split("\n")
         .filter((l) => !l.includes("start-agent") && !l.includes("watchdog"))
         .join("\n");
-      const newCron = `${filtered}\n@reboot tmux new-session -d -s ${config.agentName} ~/workspace/start-agent.sh\n@reboot node ~/workspace/guardian.mjs &\n*/5 * * * * ~/workspace/watchdog.sh\n`;
+      const newCron = `${filtered}\n@reboot tmux new-session -d -s ${config.agentName} ~/workspace/start-agent.sh\n@reboot node ~/workspace/guardian.mjs &\n*/5 * * * * ~/workspace/watchdog.sh\n55 3 * * * ~/workspace/cron-trigger.sh ${config.agentName} "End of day. Write your daily notes to ~/workspace/memory/$(date +\\%Y-\\%m-\\%d).md. Include: key conversations, decisions made, tasks completed, anything worth remembering. Keep it concise. Then run: clawmem update"\n`;
       await run("bash", ["-c", `echo '${newCron.replace(/'/g, "'\\''")}' | crontab -`]);
       log.success("Auto-restart on reboot + watchdog configured");
     } catch {
