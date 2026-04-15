@@ -119,6 +119,7 @@ if echo "$CHANNEL_LIST" | grep -q "discord"; then
 fi
 
 # Generate CLAUDE.md if not exists (persisted via volume)
+# Generate CLAUDE.md using the full template (same as sento init)
 if [ ! -f $HOME/workspace/CLAUDE.md ]; then
   ROLE="${AGENT_ROLE:-General-purpose assistant}"
   PERSONALITY="${AGENT_PERSONALITY:-Chill, helpful, keeps it real}"
@@ -126,33 +127,19 @@ if [ ! -f $HOME/workspace/CLAUDE.md ]; then
   LANGUAGE="${AGENT_LANGUAGE:-English}"
   TIMEZONE="${AGENT_TIMEZONE:-America/New_York}"
 
-  cat > $HOME/workspace/CLAUDE.md << MDEOF
-# $AGENT_NAME - AI Agent
-
-## Identity
-- Name: $AGENT_NAME
-- Role: $ROLE
-- Vibe: $PERSONALITY
-- Language: $LANGUAGE
-- Creator: $CREATOR
-
-## The Law
-NEVER take action on external APIs without explicit approval from $CREATOR.
-
-## Permission Rules
-- Freely: read/write files, git, web search, local commands
-- Ask first: any API call that modifies external systems
-
-## Response Timing
-The Discord plugin buffers messages for 30-90 seconds before you see them. Just respond naturally. Do NOT add any sleep or delay.
-
-## Timezone
-- $CREATOR is in $TIMEZONE
-- Always show times in their local timezone
-
-## Self-Management
-- You can modify your own CLAUDE.md, memory files, and config
-MDEOF
+  node -e "
+    import('/opt/sento/src/templates/claude-md.js').then(m => {
+      process.stdout.write(m.renderClaudeMd({
+        agentName: '$AGENT_NAME',
+        role: '$ROLE',
+        personality: '$PERSONALITY',
+        language: '$LANGUAGE',
+        creatorName: '$CREATOR',
+        timezone: '$TIMEZONE',
+        channelType: '$(echo $CHANNEL_LIST | cut -d, -f1)',
+      }));
+    });
+  " > $HOME/workspace/CLAUDE.md
 
   echo "This file triggers the first-run onboarding. The agent will delete it after setup." > $HOME/workspace/FIRST_RUN.md
   echo "CLAUDE.md created for $AGENT_NAME"
