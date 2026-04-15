@@ -177,18 +177,52 @@ async function addChannel() {
       const access = { dmPolicy: "allowlist", allowFrom: [], groups, ackReaction: "\uD83D\uDC40", replyToMode: "message", textChunkLimit: 2000, chunkMode: "newline" };
       fs.writeFileSync(path.join(channelDir, "access.json"), JSON.stringify(access, null, 2));
     }
-  } else {
-    // Telegram, Slack
-    const info = PLATFORMS[platform];
+  } else if (platform === "telegram") {
     const { token } = await inquirer.prompt([{
       type: "password",
       name: "token",
-      message: `${info.name} bot token:`,
+      message: "Telegram bot token:",
+      suffix: chalk.dim("\n  Telegram: message @BotFather > /newbot > copy the token\n  >"),
       mask: "*",
       validate: (v) => v.length > 10 || "Token too short",
     }]);
-    fs.writeFileSync(path.join(channelDir, ".env"), `${info.tokenVar}=${token}\n`);
+    const { chatId } = await inquirer.prompt([{
+      type: "input",
+      name: "chatId",
+      message: "Your Telegram chat ID (for owner access):",
+      suffix: chalk.dim("\n  Message @userinfobot on Telegram to get your ID\n  >"),
+      validate: (v) => /^-?\d+$/.test(v.trim()) || "Should be a number",
+    }]);
+    fs.writeFileSync(path.join(channelDir, ".env"), `TELEGRAM_BOT_TOKEN=${token}\n`);
     fs.chmodSync(path.join(channelDir, ".env"), 0o600);
+    fs.writeFileSync(path.join(channelDir, "access.json"), JSON.stringify({
+      dmPolicy: "allowlist",
+      allowFrom: [chatId.trim()],
+      groups: {},
+    }, null, 2));
+  } else if (platform === "slack") {
+    const { token } = await inquirer.prompt([{
+      type: "password",
+      name: "token",
+      message: "Slack bot token:",
+      suffix: chalk.dim("\n  Slack: api.slack.com/apps > Create App > OAuth > Bot User Token\n  >"),
+      mask: "*",
+      validate: (v) => v.length > 10 || "Token too short",
+    }]);
+    const { channelId } = await inquirer.prompt([{
+      type: "input",
+      name: "channelId",
+      message: "Slack channel ID for owner access:",
+      suffix: chalk.dim("\n  Right-click channel > View channel details > scroll to bottom\n  >"),
+      validate: (v) => v.trim().length > 0 || "Please enter a channel ID",
+    }]);
+    fs.writeFileSync(path.join(channelDir, ".env"), `SLACK_BOT_TOKEN=${token}\n`);
+    fs.chmodSync(path.join(channelDir, ".env"), 0o600);
+    fs.writeFileSync(path.join(channelDir, "access.json"), JSON.stringify({
+      dmPolicy: "allowlist",
+      allowFrom: [channelId.trim()],
+      groups: {},
+    }, null, 2));
   }
 
   updateStartScriptWithPlatform(platform);
