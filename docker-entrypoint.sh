@@ -100,12 +100,20 @@ print(json.dumps({'dmPolicy': 'allowlist', 'allowFrom': [], 'groups': groups, 'a
     if [ -n "$TELE_TOKEN" ]; then
       echo "TELEGRAM_BOT_TOKEN=$TELE_TOKEN" > $HOME/.claude/channels/telegram/.env
       chmod 600 $HOME/.claude/channels/telegram/.env
+      # Pre-approve owner if chat ID provided
+      if [ -n "$TELEGRAM_CHAT_ID" ]; then
+        echo "{\"dmPolicy\":\"allowlist\",\"allowFrom\":[\"$TELEGRAM_CHAT_ID\"],\"groups\":{}}" > $HOME/.claude/channels/telegram/access.json
+      fi
     fi
   elif [ "$PLAT" = "slack" ]; then
     SLACK_TOKEN="${SLACK_BOT_TOKEN:-$BOT_TOKEN}"
     if [ -n "$SLACK_TOKEN" ]; then
       echo "SLACK_BOT_TOKEN=$SLACK_TOKEN" > $HOME/.claude/channels/slack/.env
       chmod 600 $HOME/.claude/channels/slack/.env
+      # Pre-approve owner if channel ID provided
+      if [ -n "$SLACK_CHANNEL_ID" ]; then
+        echo "{\"dmPolicy\":\"allowlist\",\"allowFrom\":[\"$SLACK_CHANNEL_ID\"],\"groups\":{}}" > $HOME/.claude/channels/slack/access.json
+      fi
     fi
   elif [ "$PLAT" = "imessage" ]; then
     # iMessage needs no config.
@@ -194,15 +202,20 @@ fi
 
 if [ ! -f $HOME/workspace/.sento-config.json ]; then
   AGENT_CODE="SENTO-$(head -c 4 /dev/urandom | od -A n -t x1 | tr -d ' \n' | tr 'a-f' 'A-F' | head -c 8)"
-  cat > $HOME/workspace/.sento-config.json << CONF
-{
-  "agentCode": "$AGENT_CODE",
-  "agentName": "$AGENT_NAME",
-  "channelType": "$(echo $CHANNEL_LIST | cut -d, -f1)",
-  "pairedAgents": {},
-  "commsPort": 9876
-}
-CONF
+  # Build monitor ID from whichever channel has one
+  MONITOR_ID="${TELEGRAM_CHAT_ID:-${SLACK_CHANNEL_ID:-${SERVER_ID:-}}}"
+  node -e "
+    const cfg = {
+      agentCode: '$AGENT_CODE',
+      agentName: '$AGENT_NAME',
+      channelType: '$(echo $CHANNEL_LIST | cut -d, -f1)',
+      pairedAgents: {},
+      commsPort: 9876
+    };
+    if ('$MONITOR_ID') cfg.monitorChatId = '$MONITOR_ID';
+    if ('$SERVER_ID') cfg.monitorChannel = '$SERVER_ID';
+    process.stdout.write(JSON.stringify(cfg, null, 2));
+  " > $HOME/workspace/.sento-config.json
 fi
 
 # Set up cron (watchdog every 5 min + daily memory notes)

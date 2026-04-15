@@ -10,12 +10,14 @@ services:
       - AGENT_NAME=myagent
       - CLAUDE_TOKEN=${CLAUDE_TOKEN}        # Required: sk-ant-oat01-...
       - CHANNELS=discord                    # Comma-separated: discord,telegram,slack,imessage
-      # Per-platform tokens (each platform needs its own token):
+      # Per-platform tokens and IDs:
       - DISCORD_BOT_TOKEN=${BOT_TOKEN}      # Discord bot token
-      # - TELEGRAM_BOT_TOKEN=               # Telegram bot token
-      # - SLACK_BOT_TOKEN=                  # Slack bot token
-      - SERVER_ID=${SERVER_ID}              # Discord server ID (listens to all channels)
+      - SERVER_ID=${SERVER_ID}              # Discord server ID
       # - CHANNEL_IDS=123,456               # Or specific Discord channel IDs
+      # - TELEGRAM_BOT_TOKEN=               # Telegram bot token
+      # - TELEGRAM_CHAT_ID=                 # Your Telegram chat ID (message @userinfobot to get it)
+      # - SLACK_BOT_TOKEN=                  # Slack bot token
+      # - SLACK_CHANNEL_ID=                 # Slack channel ID for owner access
       - GEMINI_KEY=${GEMINI_KEY}            # Optional: for memory embeddings
       - AGENT_ROLE=General-purpose assistant
       - AGENT_PERSONALITY=Chill, helpful, keeps it real
