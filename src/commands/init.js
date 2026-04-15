@@ -122,19 +122,17 @@ export async function init() {
     );
     log.success(`Agent "${config.agentName}" is running!`);
 
-    // Launch Guardian as a fully detached background process.
-    // spawn + detached + unref so it survives after sento init exits.
-    const guardianPath = path.join(os.homedir(), "workspace/guardian.mjs");
+    // Launch Guardian via nohup (survives after sento init exits)
+    const guardianLog = path.join(os.homedir(), "workspace/memory/guardian.log");
     try {
-      const { spawn } = await import("child_process");
-      const guardian = spawn("node", [guardianPath], {
-        detached: true,
-        stdio: "ignore",
-        env,
-        cwd: path.join(os.homedir(), "workspace"),
-      });
-      guardian.unref();
-      log.success("Guardian active (auto-recovery enabled)");
+      execFileSync("bash", ["-c", `cd "${path.join(os.homedir(), "workspace")}" && nohup node guardian.mjs >> "${guardianLog}" 2>&1 &`], { env, timeout: 5000 });
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        execFileSync("pgrep", ["-f", "guardian.mjs"], { timeout: 5000 });
+        log.success("Guardian active (auto-recovery enabled)");
+      } catch {
+        log.warn("Guardian could not start. Run manually: node ~/workspace/guardian.mjs &");
+      }
     } catch {
       log.warn("Guardian could not start. Run manually: node ~/workspace/guardian.mjs &");
     }
