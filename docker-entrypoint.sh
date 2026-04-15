@@ -175,6 +175,10 @@ echo "Starting $AGENT_NAME (channels: $CHANNEL_LIST)..."
 # Run Claude Code in tmux (needs a PTY to run interactively)
 tmux new-session -d -s $AGENT_NAME "while true; do claude --dangerously-skip-permissions $CHANNEL_FLAGS; echo 'Agent exited. Restarting in 15s...'; sleep 15; done"
 
+# Auto-accept the "trust this folder" prompt (first run only)
+sleep 5
+tmux send-keys -t $AGENT_NAME Enter 2>/dev/null || true
+
 # Keep container alive and tail the tmux output
 while true; do
   sleep 30
