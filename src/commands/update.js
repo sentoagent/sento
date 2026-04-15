@@ -1,6 +1,6 @@
 import { banner, log } from "../utils/logger.js";
 import { run, runWithSpinner, commandExists } from "../utils/exec.js";
-import { patchDiscord } from "../steps/patch-discord.js";
+import { patchChannels } from "../steps/patch-channels.js";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -47,15 +47,8 @@ export async function update() {
     }
   }
 
-  // Re-apply Discord patches
-  const accessPath = path.join(home, ".claude/channels/discord/access.json");
-  const hasDiscord = fs.existsSync(accessPath);
-
-  if (hasDiscord) {
-    await patchDiscord({ channelType: "discord" });
-  } else {
-    log.info("No Discord config found, skipping patch");
-  }
+  // Re-apply channel patches (Discord guild matching + buffer, Telegram buffer)
+  await patchChannels({ patchAll: true });
 
   // Update ClawMem
   const bunBin = path.join(home, ".bun/bin");

@@ -8,7 +8,7 @@ import { installPlugins } from "../steps/install-plugins.js";
 import { configureChannel } from "../steps/configure-channel.js";
 import { installClawmem } from "../steps/install-clawmem.js";
 import { setupWorkspace } from "../steps/setup-workspace.js";
-import { patchDiscord } from "../steps/patch-discord.js";
+import { patchChannels } from "../steps/patch-channels.js";
 import { runWithSpinner } from "../utils/exec.js";
 import chalk from "chalk";
 import os from "os";
@@ -37,7 +37,7 @@ export async function init() {
     ["Configuring settings", () => configureSettings()],
     ["Installing plugins", () => installPlugins(config)],
     ["Configuring messaging channel", () => configureChannel(config)],
-    ["Patching Discord plugin", () => patchDiscord(config)],
+    ["Patching channel plugins", () => patchChannels(config)],
     ["Installing ClawMem", () => installClawmem(config)],
     ["Setting up workspace", () => setupWorkspace(config)],
   ];

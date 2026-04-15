@@ -152,8 +152,8 @@ export async function doctor(opts = {}) {
             if (fix) {
               log.info("Re-applying patches...");
               try {
-                const { patchDiscord } = await import("../steps/patch-discord.js");
-                await patchDiscord({ channelType: "discord" });
+                const { patchChannels } = await import("../steps/patch-channels.js");
+                await patchChannels({ patchAll: true });
                 log.success("Fixed: Discord patches re-applied");
                 fixed++;
               } catch (e) {
