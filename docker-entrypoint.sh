@@ -121,10 +121,8 @@ print(json.dumps({'dmPolicy': 'allowlist', 'allowFrom': [], 'groups': groups, 'a
   fi
 done
 
-# Apply Discord patches (guild matching + message buffer)
-if echo "$CHANNEL_LIST" | grep -q "discord"; then
-  node /opt/sento/bin/sento.js doctor --fix 2>/dev/null || true
-fi
+# Apply channel patches (Discord guild matching + buffer, Telegram buffer)
+node /opt/sento/bin/sento.js doctor --fix 2>/dev/null || true
 
 # Generate CLAUDE.md if not exists (persisted via volume)
 # Generate CLAUDE.md using the full template (same as sento init)
