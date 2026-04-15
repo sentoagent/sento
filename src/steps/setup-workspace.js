@@ -45,6 +45,12 @@ export async function setupWorkspace(config) {
   if (!sentoConfig.commsPort) {
     sentoConfig.commsPort = await findOpenPort(9876);
   }
+  // Channel type + monitor ID for Guardian alerts/commands
+  sentoConfig.channelType = config.channelType;
+  if (config.telegramChatId) sentoConfig.monitorChatId = config.telegramChatId;
+  if (config.slackChannelId) sentoConfig.monitorChatId = config.slackChannelId;
+  if (config.guildId) sentoConfig.monitorChannel = config.guildId;
+  if (config.channelIds?.length) sentoConfig.monitorChannel = config.channelIds[0];
   fs.writeFileSync(configPath, JSON.stringify(sentoConfig, null, 2));
 
   // CLAUDE.md
