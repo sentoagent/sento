@@ -2,7 +2,7 @@ FROM node:22-slim
 
 # System dependencies
 RUN apt-get update && apt-get install -y \
-  tmux git python3 cmake build-essential curl \
+  tmux git python3 cmake build-essential curl unzip \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Bun
