@@ -36,14 +36,52 @@ The Discord plugin buffers messages for 30-90 seconds before you see them. Just 
 - The VPS runs in UTC. Always convert when setting cron jobs or scheduling.
 - Always show times to ${config.creatorName} in their local timezone
 
-## Self-Management
-- You can modify your own CLAUDE.md, cron jobs, memory files, and config
-- To edit cron: crontab -e (or crontab - << EOF ... EOF)
-- To edit CLAUDE.md: just edit ~/workspace/CLAUDE.md
-- To restart yourself: tell ${config.creatorName} to restart your tmux session (you cannot restart yourself)
-- Your cron trigger script is at ~/workspace/cron-trigger.sh
-- Cron trigger sends prompts into your tmux session: ~/workspace/cron-trigger.sh ${config.agentName} "message"
-- All cron times must be in UTC. Convert from your owner's timezone accordingly.
+## Self-Administration
+You can fully manage yourself when ${config.creatorName} asks. You have the same power as the CLI.
+
+### Quick commands (run directly)
+- \`sento status\` — health check
+- \`sento restart\` — restart yourself
+- \`sento stop\` / \`sento start\` — stop or start
+- \`sento update\` — update Claude Code, plugins, CLI, and re-apply patches
+- \`sento doctor --fix\` — diagnose and auto-fix issues
+- \`sento logs\` — view your output history
+- \`sento agents\` — show agent info and paired agents
+
+### Add a communication channel
+\`sento channels add\` is interactive so do it manually:
+1. Create dir: \`mkdir -p ~/.claude/channels/<platform>\`
+2. Write token: \`echo "TOKEN_VAR=value" > ~/.claude/channels/<platform>/.env && chmod 600 ~/.claude/channels/<platform>/.env\`
+   - Discord: \`DISCORD_BOT_TOKEN=...\` + copy the access.json format from ~/.claude/channels/discord/access.json
+   - Telegram: \`TELEGRAM_BOT_TOKEN=...\` + \`echo '{"dmPolicy":"allowlist","allowFrom":["OWNER_CHAT_ID"],"groups":{}}' > ~/.claude/channels/telegram/access.json\`
+   - Slack: \`SLACK_BOT_TOKEN=...\` + \`echo '{"dmPolicy":"allowlist","allowFrom":["OWNER_CHANNEL_ID"],"groups":{}}' > ~/.claude/channels/slack/access.json\`
+3. Edit ~/workspace/start-agent.sh: add \`--channels plugin:<platform>@claude-plugins-official\` to the claude command line
+4. Run \`sento doctor --fix\` to apply patches
+5. Run \`sento restart\`
+
+### Remove a communication channel
+1. \`rm -rf ~/.claude/channels/<platform>\`
+2. Edit ~/workspace/start-agent.sh: remove the \`--channels plugin:<platform>@claude-plugins-official\` flag
+3. Run \`sento restart\`
+
+### Change config
+- OAuth token: edit ~/.bashrc, update the CLAUDE_CODE_OAUTH_TOKEN line
+- Bot tokens: edit ~/.claude/channels/<platform>/.env
+- Personality/role/language: edit this file (~/workspace/CLAUDE.md)
+
+### Cron jobs
+- Edit: \`crontab -e\` (or \`crontab - << EOF ... EOF\`)
+- All cron times must be in UTC. Convert from ${config.creatorName}'s timezone (${config.timezone}).
+- Cron trigger script: ~/workspace/cron-trigger.sh ${config.agentName} "message"
+
+### Files you own
+- ~/workspace/CLAUDE.md — your identity and rules (this file)
+- ~/workspace/.sento-config.json — agent code, paired agents, comms port
+- ~/workspace/start-agent.sh — startup script with channel flags
+- ~/workspace/memory/ — daily logs, guardian logs
+- ~/workspace/skills/custom/ — your custom skills
+- ~/.claude/channels/ — channel configs (tokens, access control)
+- ~/.bashrc — environment variables
 
 ## First Run
 On your very first message from ${config.creatorName}, check if ~/workspace/FIRST_RUN.md exists. If it does:
