@@ -128,7 +128,11 @@ export async function init() {
     console.log(`  ${gold.bold("Channels:")} ${gold("~/.claude/channels/discord/access.json")}`);
   }
   console.log("");
+  console.log(gold.bold("  Run this to enable the sento command:"));
+  console.log(`  ${gold("source ~/.bashrc")}`);
+  console.log("");
   console.log(chalk.dim("  Auto-restarts on reboot and on crash."));
+  console.log(chalk.dim("  New SSH sessions will have `sento` ready automatically."));
   console.log(chalk.dim("  Talk to your agent on " + config.channelType + "!"));
   console.log("");
 }
