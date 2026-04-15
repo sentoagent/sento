@@ -29,21 +29,21 @@ services:
     restart: always
 
   # Example: second agent
-  # marketing:
+  # second-agent:
   #   build: .
-  #   container_name: sento-marketing
+  #   container_name: sento-second
   #   environment:
-  #     - AGENT_NAME=mira
+  #     - AGENT_NAME=myagent2
   #     - CLAUDE_TOKEN=${CLAUDE_TOKEN}
-  #     - BOT_TOKEN=${MARKETING_BOT_TOKEN}
-  #     - CHANNEL_TYPE=discord
+  #     - CHANNELS=discord
+  #     - DISCORD_BOT_TOKEN=${SECOND_BOT_TOKEN}
   #     - SERVER_ID=${SERVER_ID}
   #     - AGENT_ROLE=Marketing assistant
-  #     - AGENT_PERSONALITY=Creative, data-driven, memelord
-  #     - AGENT_CREATOR=Gabriel
+  #     - AGENT_PERSONALITY=Creative and data-driven
+  #     - AGENT_CREATOR=John Smith
   #   volumes:
-  #     - ./data/mira-workspace:/home/sento/workspace
-  #     - ./data/mira-claude:/home/sento/.claude
+  #     - ./data/agent2-workspace:/home/sento/workspace
+  #     - ./data/agent2-claude:/home/sento/.claude
   #   ports:
   #     - "9877:9876"
   #   restart: always
