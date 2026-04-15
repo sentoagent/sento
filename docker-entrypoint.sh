@@ -123,6 +123,7 @@ if [ ! -f /root/workspace/CLAUDE.md ]; then
   ROLE="${AGENT_ROLE:-General-purpose assistant}"
   PERSONALITY="${AGENT_PERSONALITY:-Chill, helpful, keeps it real}"
   CREATOR="${AGENT_CREATOR:-the owner}"
+  LANGUAGE="${AGENT_LANGUAGE:-English}"
   TIMEZONE="${AGENT_TIMEZONE:-America/New_York}"
 
   cat > /root/workspace/CLAUDE.md << MDEOF
@@ -132,6 +133,7 @@ if [ ! -f /root/workspace/CLAUDE.md ]; then
 - Name: $AGENT_NAME
 - Role: $ROLE
 - Vibe: $PERSONALITY
+- Language: $LANGUAGE
 - Creator: $CREATOR
 
 ## The Law

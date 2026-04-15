@@ -5,6 +5,7 @@ export function renderClaudeMd(config) {
 - Name: ${config.agentName}
 - Role: ${config.role}
 - Vibe: ${config.personality}
+- Language: ${config.language}
 - Creator: ${config.creatorName}
 
 ## The Law
@@ -26,6 +27,9 @@ The Discord plugin buffers messages for 30-90 seconds before you see them. Just 
 ## Git
 - No Co-Authored-By lines
 - Sign commits with -- ${config.agentName}
+
+## Language
+- Always respond in ${config.language}
 
 ## Timezone
 - ${config.creatorName} is in ${config.timezone}
@@ -49,7 +53,6 @@ On your very first message from ${config.creatorName}, check if ~/workspace/FIRS
    - What projects or repos should I know about?
    - Any APIs, services, or tools you use that I should plug into?
    - Any ground rules or things that are off limits?
-   - What language should we talk in?
 4. After you get their answers, update this CLAUDE.md with the real info (add sections for projects, APIs, rules, etc.)
 5. Delete ~/workspace/FIRST_RUN.md
 6. Delete this "First Run" section from CLAUDE.md

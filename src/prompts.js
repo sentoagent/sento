@@ -123,6 +123,25 @@ export async function collectConfig() {
       default: "Chill, helpful, keeps it real",
     },
     {
+      type: "list",
+      name: "language",
+      message: "Agent language:",
+      choices: [
+        { name: "English", value: "English" },
+        { name: "Spanish", value: "Spanish" },
+        { name: "Chinese", value: "Chinese" },
+        { name: "Japanese", value: "Japanese" },
+        { name: "Other (type manually)", value: "__other" },
+      ],
+    },
+    {
+      type: "input",
+      name: "languageCustom",
+      message: "Enter language:",
+      when: (a) => a.language === "__other",
+      validate: (v) => v.trim().length > 0 || "Please enter a language",
+    },
+    {
       type: "input",
       name: "creatorName",
       message: "Your name (the agent's owner):",
@@ -200,9 +219,12 @@ export async function collectConfig() {
     },
   ]);
 
-  // Resolve custom timezone
+  // Resolve custom values
   if (answers.timezoneCustom) {
     answers.timezone = answers.timezoneCustom;
+  }
+  if (answers.languageCustom) {
+    answers.language = answers.languageCustom;
   }
 
   return answers;
@@ -215,6 +237,7 @@ export async function confirmConfig(config) {
   console.log(`  Channel:     ${config.channelType}`);
   console.log(`  Role:        ${config.role}`);
   console.log(`  Personality: ${config.personality}`);
+  console.log(`  Language:    ${config.language}`);
   console.log(`  Creator:     ${config.creatorName}`);
   console.log(`  Timezone:    ${config.timezone}`);
   console.log(`  Gemini:      ${config.geminiKey ? "Yes" : "No (keyword search only)"}`);
