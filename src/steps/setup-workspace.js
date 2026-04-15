@@ -10,6 +10,17 @@ import { renderWatchdog } from "../templates/watchdog.js";
 import { renderGuardian } from "../templates/guardian.js";
 import { renderSendMessage } from "../templates/send-message.js";
 import crypto from "crypto";
+import net from "net";
+
+function findOpenPort(start) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(start, "0.0.0.0", () => {
+      server.close(() => resolve(start));
+    });
+    server.on("error", () => resolve(findOpenPort(start + 1)));
+  });
+}
 
 export async function setupWorkspace(config) {
   log.step("Setting up workspace...");
@@ -31,7 +42,9 @@ export async function setupWorkspace(config) {
   }
   sentoConfig.agentName = config.agentName;
   sentoConfig.pairedAgents = sentoConfig.pairedAgents || {};
-  sentoConfig.commsPort = sentoConfig.commsPort || 9876;
+  if (!sentoConfig.commsPort) {
+    sentoConfig.commsPort = await findOpenPort(9876);
+  }
   fs.writeFileSync(configPath, JSON.stringify(sentoConfig, null, 2));
 
   // CLAUDE.md

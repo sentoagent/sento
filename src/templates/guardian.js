@@ -279,13 +279,16 @@ const commsServer = http.createServer((req, res) => {
   res.writeHead(404); res.end();
 });
 
-try {
-  commsServer.listen(COMMS_PORT, '0.0.0.0', () => {
-    log('Comms server on port ' + COMMS_PORT);
-  });
-} catch (e) {
-  log('Comms server failed: ' + e.message);
-}
+commsServer.on('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    log('Comms port ' + COMMS_PORT + ' in use. Agent-to-agent comms disabled. Other Guardian features still active.');
+  } else {
+    log('Comms server error: ' + e.message);
+  }
+});
+commsServer.listen(COMMS_PORT, '0.0.0.0', () => {
+  log('Comms server on port ' + COMMS_PORT);
+});
 
 // Check for pairing responses in Discord
 async function checkPairResponse() {
