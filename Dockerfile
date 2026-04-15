@@ -35,6 +35,9 @@ RUN cd /opt/sento && npm install --production
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# Make sento CLI available in PATH
+RUN ln -s /opt/sento/bin/sento.js /usr/local/bin/sento && chmod +x /opt/sento/bin/sento.js
+
 USER sento
 WORKDIR /home/sento/workspace
 EXPOSE 9876

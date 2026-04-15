@@ -215,8 +215,18 @@ CRONEOF
 # Start cron daemon (needs sudo since cron runs as root)
 sudo cron 2>/dev/null || true
 
+# Generate guardian.mjs from template (same as sento init)
+if [ ! -f $HOME/workspace/guardian.mjs ]; then
+  node -e "
+    import('/opt/sento/src/templates/guardian.js').then(m => {
+      process.stdout.write(m.renderGuardian({ agentName: '$AGENT_NAME' }));
+    });
+  " > $HOME/workspace/guardian.mjs
+  chmod 700 $HOME/workspace/guardian.mjs
+fi
+
 # Start Guardian in background
-node /opt/sento/bin/sento.js 2>/dev/null &
+cd $HOME/workspace && node guardian.mjs &
 
 echo "Starting $AGENT_NAME (channels: $CHANNEL_LIST)..."
 
