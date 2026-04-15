@@ -52,10 +52,8 @@ export async function init() {
     }
   }
 
-  // Initialize Claude Code (accept workspace trust)
+  // Initialize Claude Code (accept workspace trust automatically)
   log.step("Initializing Claude Code...");
-  log.info("Claude Code needs to trust your workspace on first run.");
-  log.info("Accept the prompts below, then type /exit to continue setup.\n");
 
   const claudeBin = path.join(os.homedir(), ".npm-global/bin/claude");
   const workspace = path.join(os.homedir(), "workspace");
@@ -66,20 +64,52 @@ export async function init() {
     DISPLAY: ":99",
   };
 
+  // Launch Claude Code in a temp tmux session, auto-accept the trust prompt,
+  // then send /exit. No manual interaction needed.
+  const { execFileSync } = await import("child_process");
+  const initSession = "__sento_init";
   try {
-    const { execa } = await import("execa");
-    // Launch Claude Code interactively WITHOUT --channels so Discord doesn't connect
-    // User accepts trust + bypass prompts, then types /exit
-    await execa(claudeBin, ["--dangerously-skip-permissions"], {
-      cwd: workspace,
-      env,
-      stdio: "inherit",
-    });
-  } catch {
-    // /exit causes a non-zero exit code — that's fine
+    execFileSync("tmux", ["kill-session", "-t", initSession], { timeout: 5000 });
+  } catch {}
+  execFileSync("tmux", ["new-session", "-d", "-s", initSession, `${claudeBin} --dangerously-skip-permissions`], {
+    cwd: workspace,
+    env,
+    timeout: 10000,
+  });
+
+  // Wait for trust prompt and auto-accept, then send /exit
+  log.info("Auto-accepting workspace trust...");
+  let accepted = false;
+  for (let i = 0; i < 12; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const output = execFileSync("tmux", ["capture-pane", "-t", initSession, "-p"], { encoding: "utf-8", timeout: 5000 });
+      if (output.includes("trust this folder")) {
+        execFileSync("tmux", ["send-keys", "-t", initSession, "Enter"], { timeout: 5000 });
+        accepted = true;
+        // Wait a moment then send /exit
+        await new Promise(r => setTimeout(r, 3000));
+        execFileSync("tmux", ["send-keys", "-t", initSession, "/exit", "Enter"], { timeout: 5000 });
+        break;
+      }
+      if (output.includes("Listening for") || output.includes("❯")) {
+        // Already past trust, send /exit
+        execFileSync("tmux", ["send-keys", "-t", initSession, "/exit", "Enter"], { timeout: 5000 });
+        accepted = true;
+        break;
+      }
+    } catch {}
   }
 
-  log.success("Claude Code initialized");
+  // Clean up the temp session
+  await new Promise(r => setTimeout(r, 2000));
+  try { execFileSync("tmux", ["kill-session", "-t", initSession], { timeout: 5000 }); } catch {}
+
+  if (accepted) {
+    log.success("Claude Code initialized");
+  } else {
+    log.warn("Could not auto-accept trust prompt. You may need to run Claude Code manually once.");
+  }
 
   // Launch the agent in tmux
   log.step("Launching agent...");
