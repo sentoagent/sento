@@ -40,4 +40,15 @@ export async function installClaude() {
     ["install", "-g", "--prefix", npmGlobal, "@upstash/context7-mcp"],
     { env }
   );
+
+  // Install sentoagent globally so `sento` command is available after init
+  const sentoPath = path.join(npmGlobal, "bin/sento");
+  if (!fs.existsSync(sentoPath)) {
+    await runWithSpinner(
+      "Installing sentoagent CLI",
+      "npm",
+      ["install", "-g", "--prefix", npmGlobal, "sentoagent"],
+      { env }
+    );
+  }
 }

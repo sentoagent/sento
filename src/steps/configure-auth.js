@@ -24,6 +24,14 @@ export async function configureAuth(config) {
   appendToFile(bashrc, "DISPLAY", ":99");
   appendToFile(bashrc, "PATH", "$HOME/.npm-global/bin:$HOME/.bun/bin:$PATH");
 
+  // Ensure .profile sources .bashrc for login shells (SSH).
+  // Some systems (Debian) only read .profile on login, not .bashrc.
+  const profile = path.join(os.homedir(), ".profile");
+  const profileContent = fs.existsSync(profile) ? fs.readFileSync(profile, "utf-8") : "";
+  if (!profileContent.includes(".bashrc")) {
+    fs.appendFileSync(profile, '\nif [ -f "$HOME/.bashrc" ]; then . "$HOME/.bashrc"; fi\n');
+  }
+
   if (config.geminiKey) {
     appendToFile(bashrc, "GEMINI_API_KEY", config.geminiKey);
     appendToFile(bashrc, "CLAWMEM_EMBED_URL", "https://generativelanguage.googleapis.com/v1beta/openai");
