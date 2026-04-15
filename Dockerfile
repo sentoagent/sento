@@ -2,11 +2,12 @@ FROM node:22-slim
 
 # System dependencies
 RUN apt-get update && apt-get install -y \
-  tmux git python3 cmake build-essential curl unzip sudo \
+  tmux git python3 cmake build-essential curl unzip sudo cron \
   && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user (Claude Code refuses --dangerously-skip-permissions as root)
-RUN useradd -m -s /bin/bash sento
+RUN useradd -m -s /bin/bash sento \
+  && echo "sento ALL=(root) NOPASSWD: /usr/sbin/cron" >> /etc/sudoers.d/sento
 ENV HOME=/home/sento
 
 # Install Bun as sento user

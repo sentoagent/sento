@@ -167,6 +167,67 @@ if [ ! -f $HOME/.bun/install/global/node_modules/clawmem/bin/clawmem ]; then
   clawmem setup mcp 2>/dev/null || true
 fi
 
+# Generate workspace scripts if missing (first run)
+if [ ! -f $HOME/workspace/start-agent.sh ]; then
+  cat > $HOME/workspace/start-agent.sh << SCRIPT
+#!/bin/bash
+export PATH=$HOME/.npm-global/bin:$HOME/.bun/bin:/usr/local/bin:/usr/bin:/bin
+export CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_TOKEN
+export DISPLAY=:99
+cd ~/workspace
+while true; do
+  claude --dangerously-skip-permissions $CHANNEL_FLAGS
+  sleep 15
+done
+SCRIPT
+  chmod 700 $HOME/workspace/start-agent.sh
+fi
+
+if [ ! -f $HOME/workspace/watchdog.sh ]; then
+  cat > $HOME/workspace/watchdog.sh << 'WATCHDOG'
+#!/bin/bash
+SESSION=$(cat ~/workspace/.sento-config.json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('agentName','agent'))" 2>/dev/null || echo "agent")
+if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Watchdog: $SESSION not running. Restarting..." >> ~/workspace/memory/watchdog.log
+  tmux new-session -d -s "$SESSION" ~/workspace/start-agent.sh
+fi
+WATCHDOG
+  chmod 700 $HOME/workspace/watchdog.sh
+fi
+
+if [ ! -f $HOME/workspace/cron-trigger.sh ]; then
+  cat > $HOME/workspace/cron-trigger.sh << 'CRON'
+#!/bin/bash
+SESSION="${1:-agent}"
+MSG="${2:-hello}"
+tmux send-keys -t "$SESSION" "$MSG" Enter 2>/dev/null
+CRON
+  chmod 700 $HOME/workspace/cron-trigger.sh
+fi
+
+if [ ! -f $HOME/workspace/.sento-config.json ]; then
+  AGENT_CODE="SENTO-$(head -c 4 /dev/urandom | od -A n -t x1 | tr -d ' \n' | tr 'a-f' 'A-F' | head -c 8)"
+  cat > $HOME/workspace/.sento-config.json << CONF
+{
+  "agentCode": "$AGENT_CODE",
+  "agentName": "$AGENT_NAME",
+  "channelType": "$(echo $CHANNEL_LIST | cut -d, -f1)",
+  "pairedAgents": {},
+  "commsPort": 9876
+}
+CONF
+fi
+
+# Set up cron (watchdog every 5 min + daily memory notes)
+(crontab -l 2>/dev/null || echo ""; cat << CRONEOF
+*/5 * * * * $HOME/workspace/watchdog.sh
+55 3 * * * $HOME/workspace/cron-trigger.sh $AGENT_NAME "End of day. Write your daily notes to ~/workspace/memory/\$(date +\%Y-\%m-\%d).md. Include: key conversations, decisions made, tasks completed, anything worth remembering. Keep it concise. Then run: clawmem update"
+CRONEOF
+) | sort -u | crontab - 2>/dev/null || true
+
+# Start cron daemon (needs sudo since cron runs as root)
+sudo cron 2>/dev/null || true
+
 # Start Guardian in background
 node /opt/sento/bin/sento.js 2>/dev/null &
 
