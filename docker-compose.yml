@@ -22,8 +22,8 @@ services:
       - AGENT_CREATOR=John Smith
       - AGENT_TIMEZONE=America/New_York
     volumes:
-      - ./data/workspace:/root/workspace     # Persists CLAUDE.md, memory, skills
-      - ./data/claude:/root/.claude           # Persists plugins, settings, channels
+      - ./data/workspace:/home/sento/workspace  # Persists CLAUDE.md, memory, skills
+      - ./data/claude:/home/sento/.claude      # Persists plugins, settings, channels
     ports:
       - "9876:9876"                          # Agent-to-agent comms port
     restart: always
@@ -42,8 +42,8 @@ services:
   #     - AGENT_PERSONALITY=Creative, data-driven, memelord
   #     - AGENT_CREATOR=Gabriel
   #   volumes:
-  #     - ./data/mira-workspace:/root/workspace
-  #     - ./data/mira-claude:/root/.claude
+  #     - ./data/mira-workspace:/home/sento/workspace
+  #     - ./data/mira-claude:/home/sento/.claude
   #   ports:
   #     - "9877:9876"
   #   restart: always

@@ -36,7 +36,7 @@ CHANNEL_FLAGS=$(build_channel_flags "$CHANNEL_LIST")
 # Export tokens
 export CLAUDE_CODE_OAUTH_TOKEN="$CLAUDE_TOKEN"
 export DISPLAY=:99
-export PATH="/root/.npm-global/bin:/root/.bun/bin:$PATH"
+export PATH="$HOME/.npm-global/bin:$HOME/.bun/bin:$PATH"
 
 # Gemini (optional)
 if [ -n "$GEMINI_KEY" ]; then
@@ -47,27 +47,27 @@ if [ -n "$GEMINI_KEY" ]; then
 fi
 
 # Skip interactive prompts
-cat > /root/.claude.json << EOF
+cat > $HOME/.claude.json << EOF
 {"hasCompletedOnboarding": true, "mcpServers": {"playwright": {"command": "npx", "args": ["@playwright/mcp"], "env": {"DISPLAY": ":99"}}}}
 EOF
 
-mkdir -p /root/.claude
-cat > /root/.claude/settings.json << EOF
-{"skipDangerousModePermissionPrompt": true}
+mkdir -p $HOME/.claude
+cat > $HOME/.claude/settings.json << EOF
+{"skipDangerousModePermissionPrompt": true, "trustedDirectories": ["$HOME/workspace"]}
 EOF
 
 # Pre-trust workspace
-mkdir -p /root/.claude/projects/-root-workspace
+mkdir -p "$HOME/.claude/projects/--home--sento--workspace"
 
 # Install plugins (first run only — cached in volume)
-if [ ! -f /root/.claude/.plugins-installed ]; then
+if [ ! -f $HOME/.claude/.plugins-installed ]; then
   echo "Installing plugins (first run)..."
   claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
   claude plugin marketplace update claude-plugins-official 2>/dev/null || true
   for P in discord telegram slack imessage superpowers context7 code-review code-simplifier commit-commands feature-dev frontend-design hookify pr-review-toolkit security-guidance skill-creator claude-md-management typescript-lsp; do
     claude plugin install $P@claude-plugins-official 2>/dev/null || true
   done
-  touch /root/.claude/.plugins-installed
+  touch $HOME/.claude/.plugins-installed
   echo "Plugins installed."
 fi
 
@@ -77,35 +77,35 @@ fi
 IFS=',' read -ra PLATFORMS_ARRAY <<< "$CHANNEL_LIST"
 for PLAT in "${PLATFORMS_ARRAY[@]}"; do
   PLAT=$(echo "$PLAT" | xargs)
-  mkdir -p /root/.claude/channels/$PLAT
+  mkdir -p $HOME/.claude/channels/$PLAT
 
   if [ "$PLAT" = "discord" ]; then
     DISC_TOKEN="${DISCORD_BOT_TOKEN:-$BOT_TOKEN}"
     if [ -n "$DISC_TOKEN" ]; then
-      echo "DISCORD_BOT_TOKEN=$DISC_TOKEN" > /root/.claude/channels/discord/.env
-      chmod 600 /root/.claude/channels/discord/.env
+      echo "DISCORD_BOT_TOKEN=$DISC_TOKEN" > $HOME/.claude/channels/discord/.env
+      chmod 600 $HOME/.claude/channels/discord/.env
       if [ -n "$SERVER_ID" ]; then
-        echo "{\"dmPolicy\":\"allowlist\",\"allowFrom\":[],\"groups\":{\"$SERVER_ID\":{\"requireMention\":false,\"allowFrom\":[]}},\"ackReaction\":\"👀\",\"replyToMode\":\"message\",\"textChunkLimit\":2000,\"chunkMode\":\"newline\"}" > /root/.claude/channels/discord/access.json
+        echo "{\"dmPolicy\":\"allowlist\",\"allowFrom\":[],\"groups\":{\"$SERVER_ID\":{\"requireMention\":false,\"allowFrom\":[]}},\"ackReaction\":\"👀\",\"replyToMode\":\"message\",\"textChunkLimit\":2000,\"chunkMode\":\"newline\"}" > $HOME/.claude/channels/discord/access.json
       elif [ -n "$CHANNEL_IDS" ]; then
         python3 -c "
 import json
 ids = '$CHANNEL_IDS'.split(',')
 groups = {i.strip(): {'requireMention': False, 'allowFrom': []} for i in ids}
 print(json.dumps({'dmPolicy': 'allowlist', 'allowFrom': [], 'groups': groups, 'ackReaction': '\uD83D\uDC40', 'replyToMode': 'message', 'textChunkLimit': 2000, 'chunkMode': 'newline'}))
-" > /root/.claude/channels/discord/access.json
+" > $HOME/.claude/channels/discord/access.json
       fi
     fi
   elif [ "$PLAT" = "telegram" ]; then
     TELE_TOKEN="${TELEGRAM_BOT_TOKEN:-$BOT_TOKEN}"
     if [ -n "$TELE_TOKEN" ]; then
-      echo "TELEGRAM_BOT_TOKEN=$TELE_TOKEN" > /root/.claude/channels/telegram/.env
-      chmod 600 /root/.claude/channels/telegram/.env
+      echo "TELEGRAM_BOT_TOKEN=$TELE_TOKEN" > $HOME/.claude/channels/telegram/.env
+      chmod 600 $HOME/.claude/channels/telegram/.env
     fi
   elif [ "$PLAT" = "slack" ]; then
     SLACK_TOKEN="${SLACK_BOT_TOKEN:-$BOT_TOKEN}"
     if [ -n "$SLACK_TOKEN" ]; then
-      echo "SLACK_BOT_TOKEN=$SLACK_TOKEN" > /root/.claude/channels/slack/.env
-      chmod 600 /root/.claude/channels/slack/.env
+      echo "SLACK_BOT_TOKEN=$SLACK_TOKEN" > $HOME/.claude/channels/slack/.env
+      chmod 600 $HOME/.claude/channels/slack/.env
     fi
   elif [ "$PLAT" = "imessage" ]; then
     # iMessage needs no config.
@@ -119,14 +119,14 @@ if echo "$CHANNEL_LIST" | grep -q "discord"; then
 fi
 
 # Generate CLAUDE.md if not exists (persisted via volume)
-if [ ! -f /root/workspace/CLAUDE.md ]; then
+if [ ! -f $HOME/workspace/CLAUDE.md ]; then
   ROLE="${AGENT_ROLE:-General-purpose assistant}"
   PERSONALITY="${AGENT_PERSONALITY:-Chill, helpful, keeps it real}"
   CREATOR="${AGENT_CREATOR:-the owner}"
   LANGUAGE="${AGENT_LANGUAGE:-English}"
   TIMEZONE="${AGENT_TIMEZONE:-America/New_York}"
 
-  cat > /root/workspace/CLAUDE.md << MDEOF
+  cat > $HOME/workspace/CLAUDE.md << MDEOF
 # $AGENT_NAME - AI Agent
 
 ## Identity
@@ -154,15 +154,15 @@ The Discord plugin buffers messages for 30-90 seconds before you see them. Just 
 - You can modify your own CLAUDE.md, memory files, and config
 MDEOF
 
-  echo "This file triggers the first-run onboarding. The agent will delete it after setup." > /root/workspace/FIRST_RUN.md
+  echo "This file triggers the first-run onboarding. The agent will delete it after setup." > $HOME/workspace/FIRST_RUN.md
   echo "CLAUDE.md created for $AGENT_NAME"
 fi
 
 # Install ClawMem (first run only)
-if [ ! -f /root/.bun/install/global/node_modules/clawmem/bin/clawmem ]; then
+if [ ! -f $HOME/.bun/install/global/node_modules/clawmem/bin/clawmem ]; then
   echo "Installing ClawMem..."
   bun install -g clawmem 2>/dev/null || true
-  clawmem bootstrap /root/workspace --name workspace 2>/dev/null || true
+  clawmem bootstrap $HOME/workspace --name workspace 2>/dev/null || true
   clawmem setup hooks 2>/dev/null || true
   clawmem setup mcp 2>/dev/null || true
 fi
