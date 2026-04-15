@@ -79,10 +79,18 @@ export async function setupWorkspace(config) {
     try {
       const { stdout } = await run("crontab", ["-l"], { allowFail: true });
       const existing = stdout || "";
+      // Remove all sento-related entries before re-adding
       const filtered = existing.split("\n")
-        .filter((l) => !l.includes("start-agent") && !l.includes("watchdog"))
+        .filter((l) => !l.includes("start-agent") && !l.includes("watchdog") && !l.includes("guardian") && !l.includes("cron-trigger"))
+        .filter((l) => l.trim())
         .join("\n");
-      const newCron = `${filtered}\n@reboot tmux new-session -d -s ${config.agentName} ~/workspace/start-agent.sh\n@reboot node ~/workspace/guardian.mjs &\n*/5 * * * * ~/workspace/watchdog.sh\n55 3 * * * ~/workspace/cron-trigger.sh ${config.agentName} "End of day. Write your daily notes to ~/workspace/memory/$(date +\\%Y-\\%m-\\%d).md. Include: key conversations, decisions made, tasks completed, anything worth remembering. Keep it concise. Then run: clawmem update"\n`;
+      const sentoEntries = [
+        `@reboot tmux new-session -d -s ${config.agentName} ~/workspace/start-agent.sh`,
+        `@reboot node ~/workspace/guardian.mjs &`,
+        `*/5 * * * * ~/workspace/watchdog.sh`,
+        `55 3 * * * ~/workspace/cron-trigger.sh ${config.agentName} "End of day. Write your daily notes to ~/workspace/memory/$(date +\\%Y-\\%m-\\%d).md. Include: key conversations, decisions made, tasks completed, anything worth remembering. Keep it concise. Then run: clawmem update"`,
+      ].join("\n");
+      const newCron = filtered ? `${filtered}\n${sentoEntries}\n` : `${sentoEntries}\n`;
       await run("bash", ["-c", `echo '${newCron.replace(/'/g, "'\\''")}' | crontab -`]);
       log.success("Auto-restart on reboot + watchdog configured");
     } catch {
