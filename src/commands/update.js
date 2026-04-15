@@ -10,9 +10,11 @@ export async function update() {
   log.step("Updating Sentō agent...");
 
   const home = os.homedir();
+  const npmGlobal = path.join(home, ".npm-global");
   const env = {
     ...process.env,
-    PATH: `${home}/.npm-global/bin:${home}/.bun/bin:${process.env.PATH}`,
+    NPM_CONFIG_PREFIX: npmGlobal,
+    PATH: `${npmGlobal}/bin:${home}/.bun/bin:${process.env.PATH}`,
   };
 
   // Check if sento was initialized
@@ -22,9 +24,12 @@ export async function update() {
     process.exit(1);
   }
 
+  // Self-update sentoagent CLI
+  await runWithSpinner("Updating sentoagent CLI", "npm", ["install", "-g", "--prefix", npmGlobal, "sentoagent@latest"], { env });
+
   // Update Claude Code
   if (await commandExists("claude")) {
-    await runWithSpinner("Updating Claude Code", "npm", ["update", "-g", "@anthropic-ai/claude-code"], { env });
+    await runWithSpinner("Updating Claude Code", "npm", ["install", "-g", "--prefix", npmGlobal, "@anthropic-ai/claude-code"], { env });
   }
 
   // Update plugins

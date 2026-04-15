@@ -1,6 +1,7 @@
 import inquirer from "inquirer";
 import chalk from "chalk";
 import { banner, log } from "../utils/logger.js";
+import { patchChannels } from "../steps/patch-channels.js";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -226,6 +227,7 @@ async function addChannel() {
   }
 
   updateStartScriptWithPlatform(platform);
+  await patchChannels({ channelType: platform });
   log.success(`${PLATFORMS[platform].name} added. Restart agent to activate.`);
 }
 
