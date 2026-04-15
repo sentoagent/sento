@@ -92,11 +92,18 @@ export async function init() {
     );
     log.success(`Agent "${config.agentName}" is running!`);
 
-    // Launch Guardian (background process)
+    // Launch Guardian as a fully detached background process.
+    // spawn + detached + unref so it survives after sento init exits.
     const guardianPath = path.join(os.homedir(), "workspace/guardian.mjs");
     try {
-      const { execa } = await import("execa");
-      await execa("node", [guardianPath], { detached: true, stdio: "ignore", env });
+      const { spawn } = await import("child_process");
+      const guardian = spawn("node", [guardianPath], {
+        detached: true,
+        stdio: "ignore",
+        env,
+        cwd: path.join(os.homedir(), "workspace"),
+      });
+      guardian.unref();
       log.success("Guardian active (auto-recovery enabled)");
     } catch {
       log.warn("Guardian could not start. Run manually: node ~/workspace/guardian.mjs &");
