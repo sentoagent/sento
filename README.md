@@ -63,7 +63,7 @@ npx sentoagent logs --watchdog # View auto-restart history
 
 # Configure
 npx sentoagent config         # Change model, tokens, keys, settings
-npx sentoagent channels       # Add/remove Discord channels or servers
+npx sentoagent channels       # Add/remove communication channels (Discord, Telegram, Slack)
 
 # Skills
 npx sentoagent skills         # List installed plugins and custom skills
@@ -106,16 +106,48 @@ npx sentoagent doctor --fix   # Auto-fix what's possible
 # Clone the repo
 git clone https://github.com/sentoagent/sento.git && cd sento
 
-# Set your tokens in .env
-echo "CLAUDE_TOKEN=sk-ant-oat01-..." > .env
-echo "BOT_TOKEN=your-discord-bot-token" >> .env
-echo "SERVER_ID=your-discord-server-id" >> .env
+# Build the image
+docker build -t sento .
 
-# Launch
-docker compose up -d
+# Run with Discord
+docker run -d \
+  --name my-agent \
+  -e CLAUDE_TOKEN="sk-ant-oat01-..." \
+  -e AGENT_NAME="myagent" \
+  -e CHANNELS="discord" \
+  -e DISCORD_BOT_TOKEN="your-bot-token" \
+  -e SERVER_ID="your-server-id" \
+  -e AGENT_ROLE="General-purpose assistant" \
+  -e AGENT_PERSONALITY="Chill, helpful" \
+  -e AGENT_LANGUAGE="English" \
+  -e AGENT_CREATOR="Your Name" \
+  -e AGENT_TIMEZONE="America/New_York" \
+  sento
+
+# Watch the setup (takes a few minutes on first run)
+docker logs -f my-agent
+
+# Once you see "Starting myagent (channels: discord)...", the bot is live!
+```
+
+**Multi-channel:**
+```bash
+-e CHANNELS="discord,telegram" \
+-e DISCORD_BOT_TOKEN="..." \
+-e TELEGRAM_BOT_TOKEN="..." \
+-e TELEGRAM_CHAT_ID="your-chat-id" \
+```
+
+**Telegram only:**
+```bash
+-e CHANNELS="telegram" \
+-e TELEGRAM_BOT_TOKEN="..." \
+-e TELEGRAM_CHAT_ID="your-chat-id" \
 ```
 
 > **About `CLAUDE_TOKEN`:** This is your Claude Code **OAuth token** (prefix `sk-ant-oat01-`), not an Anthropic API key. It authenticates Claude Code against your existing Claude subscription — no per-token billing. Get it by running `claude setup-token` locally after signing into Claude Code, or copy it from `~/.claude/.credentials.json`. Treat it like a password.
+
+> **First run takes a few minutes.** Docker installs plugins, ClawMem, and generates embeddings. Watch progress with `docker logs -f my-agent`. Subsequent starts are fast.
 
 Multi-agent? Just add more services to `docker-compose.yml`. Each agent gets its own container, volumes, and port.
 
@@ -164,7 +196,7 @@ An empty `allowFrom: []` means "anyone with channel access." Run `npx sentoagent
 - **Not affiliated with Anthropic.** Sentō is an independent tool that uses Claude Code.
 - **API costs apply.** Using Claude Code requires a paid Anthropic plan. Usage may incur additional costs per Anthropic's pricing.
 - **Third-party software.** Sentō installs and configures Claude Code, ClawMem, Playwright, and other packages governed by their respective licenses.
-- **Plugin patches.** Sentō patches the Claude Code Discord plugin to support server-wide channel matching and message buffering. Run `sento update` after Claude Code updates to re-apply patches.
+- **Plugin patches.** Sentō patches Claude Code channel plugins (Discord guild matching + message buffer, Telegram message buffer). Run `sento update` after Claude Code updates to re-apply patches.
 
 ## Architecture
 
@@ -192,8 +224,8 @@ Sentō agents are designed to never go down. Two layers of protection:
 **Guardian Bot** — A lightweight Node.js process that runs alongside the agent:
 - Monitors agent health every 30 seconds
 - Auto-restarts when the agent is stuck or crashed
-- Sends Discord notifications: "Restarting..." → "Back online!"
-- If auto-restart fails, lets you fix it FROM DISCORD — reply "restart", "logs", or "status"
+- Sends notifications on Discord, Telegram, or Slack: "Restarting..." → "Back online!"
+- If auto-restart fails, lets you fix it from your messaging app. Reply "restart", "logs", or "status"
 - You never need to open a terminal to fix your agent
 - Zero tokens, zero AI calls
 
