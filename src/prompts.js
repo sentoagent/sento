@@ -29,11 +29,6 @@ export async function collectConfig() {
         { name: "Telegram", value: "telegram" },
         { name: "Slack", value: "slack" },
         { name: "iMessage (macOS only)", value: "imessage" },
-        // WIP — plugins under plugins/line and plugins/whatsapp are scaffolds.
-        // Listed here so the CLI shape is right; init will refuse politely
-        // until the plugin servers are functional.
-        { name: "LINE (WIP)", value: "line" },
-        { name: "WhatsApp via Baileys (WIP — uses your own number, ToS risk)", value: "whatsapp" },
       ],
     },
     {
@@ -62,31 +57,6 @@ export async function collectConfig() {
       mask: "*",
       validate: (v) => v.length > 10 || "Please paste your bot token",
       when: (a) => a.channelType === "slack",
-    },
-    {
-      type: "password",
-      name: "botToken",
-      message: "LINE Channel Access Token (long-lived):",
-      suffix: chalk.dim(`\n  LINE: developers.line.biz > Providers > your channel > Messaging API\n  Scroll down to "Channel access token" > Issue\n  You'll also need to set the webhook URL — Sento will print it after install\n  >`),
-      mask: "*",
-      validate: (v) => v.length > 10 || "Please paste your LINE channel access token",
-      when: (a) => a.channelType === "line",
-    },
-    {
-      type: "password",
-      name: "lineChannelSecret",
-      message: "LINE Channel Secret:",
-      suffix: chalk.dim(`\n  Same console > Basic settings > Channel secret\n  >`),
-      mask: "*",
-      validate: (v) => v.length > 10 || "Please paste your LINE channel secret",
-      when: (a) => a.channelType === "line",
-    },
-    {
-      type: "confirm",
-      name: "whatsappTosAck",
-      message: "WhatsApp via Baileys uses unofficial client automation. It violates WhatsApp's ToS — Meta MAY ban your number. Recommend a separate phone + eSIM. Continue?",
-      when: (a) => a.channelType === "whatsapp",
-      default: false,
     },
     {
       type: "list",

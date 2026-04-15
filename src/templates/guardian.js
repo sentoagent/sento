@@ -133,8 +133,8 @@ function check() {
   if (!alive()) { log('Dead.'); wh('\\uD83D\\uDD04 **' + SESSION + '** went down. Restarting...'); restart(); s.restarts.push(now); s.status = 'restarting'; s.failCount = 0; sv(s); return; }
 
   const o = tm(); if (!o) { s.status = 'ok'; s.failCount = 0; sv(s); return; }
-  const i = (o.match(/\\u2190 discord|\\u2190 telegram|\\u2190 slack|\\u2190 line|\\u2190 whatsapp/g) || []).length;
-  const r = (o.match(/discord - reply|telegram.*reply|slack.*reply|line.*reply|whatsapp.*reply/g) || []).length;
+  const i = (o.match(/\\u2190 discord|\\u2190 telegram|\\u2190 slack/g) || []).length;
+  const r = (o.match(/discord - reply|telegram.*reply|slack.*reply/g) || []).length;
   const e = (o.match(/API Error:|error.*Overloaded|Could not process/g) || []).length;
   const w = (o.match(/Crunching|Pondering|Baked|Bash\\(|Read\\(|Edit\\(|Write\\(|Web Search|esc to interrupt/g) || []).length;
 

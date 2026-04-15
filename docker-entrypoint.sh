@@ -12,8 +12,26 @@ if [ -z "$AGENT_NAME" ]; then
   AGENT_NAME="agent"
 fi
 
+# Multi-channel support: CHANNELS env var (comma-separated) takes priority,
+# falls back to single CHANNEL_TYPE for backwards compat.
 CHANNEL_TYPE="${CHANNEL_TYPE:-discord}"
-CHANNEL_PLUGIN="plugin:${CHANNEL_TYPE}@claude-plugins-official"
+if [ -n "$CHANNELS" ]; then
+  CHANNEL_LIST="$CHANNELS"
+else
+  CHANNEL_LIST="$CHANNEL_TYPE"
+fi
+
+# Build --channels flags (all plugins from official marketplace)
+build_channel_flags() {
+  local flags=""
+  IFS=',' read -ra PLATFORMS <<< "$1"
+  for p in "${PLATFORMS[@]}"; do
+    p=$(echo "$p" | xargs)  # trim whitespace
+    flags="$flags --channels plugin:${p}@claude-plugins-official"
+  done
+  echo "$flags"
+}
+CHANNEL_FLAGS=$(build_channel_flags "$CHANNEL_LIST")
 
 # Export tokens
 export CLAUDE_CODE_OAUTH_TOKEN="$CLAUDE_TOKEN"
@@ -53,35 +71,50 @@ if [ ! -f /root/.claude/.plugins-installed ]; then
   echo "Plugins installed."
 fi
 
-# Configure messaging channel
-if [ -n "$BOT_TOKEN" ]; then
-  mkdir -p /root/.claude/channels/$CHANNEL_TYPE
+# Configure messaging channels
+# Each platform reads from its own env var: BOT_TOKEN (Discord/fallback),
+# DISCORD_BOT_TOKEN, TELEGRAM_BOT_TOKEN, SLACK_BOT_TOKEN
+IFS=',' read -ra PLATFORMS_ARRAY <<< "$CHANNEL_LIST"
+for PLAT in "${PLATFORMS_ARRAY[@]}"; do
+  PLAT=$(echo "$PLAT" | xargs)
+  mkdir -p /root/.claude/channels/$PLAT
 
-  if [ "$CHANNEL_TYPE" = "discord" ]; then
-    echo "DISCORD_BOT_TOKEN=$BOT_TOKEN" > /root/.claude/channels/discord/.env
-
-    # Build access.json
-    if [ -n "$SERVER_ID" ]; then
-      echo "{\"dmPolicy\":\"allowlist\",\"allowFrom\":[],\"groups\":{\"$SERVER_ID\":{\"requireMention\":false,\"allowFrom\":[]}},\"ackReaction\":\"👀\",\"replyToMode\":\"message\",\"textChunkLimit\":2000,\"chunkMode\":\"newline\"}" > /root/.claude/channels/discord/access.json
-    elif [ -n "$CHANNEL_IDS" ]; then
-      python3 -c "
+  if [ "$PLAT" = "discord" ]; then
+    DISC_TOKEN="${DISCORD_BOT_TOKEN:-$BOT_TOKEN}"
+    if [ -n "$DISC_TOKEN" ]; then
+      echo "DISCORD_BOT_TOKEN=$DISC_TOKEN" > /root/.claude/channels/discord/.env
+      chmod 600 /root/.claude/channels/discord/.env
+      if [ -n "$SERVER_ID" ]; then
+        echo "{\"dmPolicy\":\"allowlist\",\"allowFrom\":[],\"groups\":{\"$SERVER_ID\":{\"requireMention\":false,\"allowFrom\":[]}},\"ackReaction\":\"👀\",\"replyToMode\":\"message\",\"textChunkLimit\":2000,\"chunkMode\":\"newline\"}" > /root/.claude/channels/discord/access.json
+      elif [ -n "$CHANNEL_IDS" ]; then
+        python3 -c "
 import json
 ids = '$CHANNEL_IDS'.split(',')
 groups = {i.strip(): {'requireMention': False, 'allowFrom': []} for i in ids}
 print(json.dumps({'dmPolicy': 'allowlist', 'allowFrom': [], 'groups': groups, 'ackReaction': '\uD83D\uDC40', 'replyToMode': 'message', 'textChunkLimit': 2000, 'chunkMode': 'newline'}))
 " > /root/.claude/channels/discord/access.json
+      fi
     fi
-  elif [ "$CHANNEL_TYPE" = "telegram" ]; then
-    echo "TELEGRAM_BOT_TOKEN=$BOT_TOKEN" > /root/.claude/channels/telegram/.env
-  elif [ "$CHANNEL_TYPE" = "slack" ]; then
-    echo "SLACK_BOT_TOKEN=$BOT_TOKEN" > /root/.claude/channels/slack/.env
+  elif [ "$PLAT" = "telegram" ]; then
+    TELE_TOKEN="${TELEGRAM_BOT_TOKEN:-$BOT_TOKEN}"
+    if [ -n "$TELE_TOKEN" ]; then
+      echo "TELEGRAM_BOT_TOKEN=$TELE_TOKEN" > /root/.claude/channels/telegram/.env
+      chmod 600 /root/.claude/channels/telegram/.env
+    fi
+  elif [ "$PLAT" = "slack" ]; then
+    SLACK_TOKEN="${SLACK_BOT_TOKEN:-$BOT_TOKEN}"
+    if [ -n "$SLACK_TOKEN" ]; then
+      echo "SLACK_BOT_TOKEN=$SLACK_TOKEN" > /root/.claude/channels/slack/.env
+      chmod 600 /root/.claude/channels/slack/.env
+    fi
+  elif [ "$PLAT" = "imessage" ]; then
+    # iMessage needs no config.
+    true
   fi
-
-  chmod 600 /root/.claude/channels/$CHANNEL_TYPE/.env
-fi
+done
 
 # Apply Discord patches (guild matching + message buffer)
-if [ "$CHANNEL_TYPE" = "discord" ]; then
+if echo "$CHANNEL_LIST" | grep -q "discord"; then
   node /opt/sento/bin/sento.js doctor --fix 2>/dev/null || true
 fi
 
@@ -135,11 +168,11 @@ fi
 # Start Guardian in background
 node /opt/sento/bin/sento.js 2>/dev/null &
 
-echo "Starting $AGENT_NAME ($CHANNEL_TYPE)..."
+echo "Starting $AGENT_NAME (channels: $CHANNEL_LIST)..."
 
-# Run Claude Code (restarts on crash)
+# Run Claude Code with all configured channels (restarts on crash)
 while true; do
-  claude --dangerously-skip-permissions --channels $CHANNEL_PLUGIN
+  claude --dangerously-skip-permissions $CHANNEL_FLAGS
   echo "Agent exited. Restarting in 15s..."
   sleep 15
 done

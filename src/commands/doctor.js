@@ -71,32 +71,11 @@ export async function doctor(opts = {}) {
       if (content.includes("TOKEN=") && content.split("=")[1]?.trim().length > 10) {
         log.success(`${ch} bot token configured`);
         hasChannel = true;
-        // LINE needs both token AND secret — either missing means webhooks
-        // will fail signature validation.
-        if (ch === "line" && !/^LINE_CHANNEL_SECRET=.{10,}/m.test(content)) {
-          log.error("LINE configured but LINE_CHANNEL_SECRET is missing/empty");
-          log.info("Fix: edit ~/.claude/channels/line/.env and add the channel secret");
-          issues++;
-        }
       } else {
         log.error(`${ch} .env exists but token looks empty`);
         log.info("Fix: sento config → Update bot token");
         issues++;
       }
-    }
-  }
-
-  // WhatsApp uses creds.json (Baileys auth state) instead of a token .env
-  const waCreds = path.join(home, ".claude/channels/whatsapp/creds.json");
-  if (fs.existsSync(waCreds)) {
-    try {
-      JSON.parse(fs.readFileSync(waCreds, "utf-8"));
-      log.success("whatsapp session (Baileys creds.json)");
-      hasChannel = true;
-    } catch {
-      log.error("whatsapp creds.json exists but is corrupt");
-      log.info("Fix: re-run sento init and re-scan the WhatsApp QR code");
-      issues++;
     }
   }
 
