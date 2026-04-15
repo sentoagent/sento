@@ -57,7 +57,7 @@ cat > $HOME/.claude/settings.json << EOF
 EOF
 
 # Pre-trust workspace
-mkdir -p "$HOME/.claude/projects/--home--sento--workspace"
+mkdir -p "$HOME/.claude/projects/-home-sento-workspace"
 
 # Install plugins (first run only — cached in volume)
 if [ ! -f $HOME/.claude/.plugins-installed ]; then
