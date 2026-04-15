@@ -50,39 +50,41 @@ A 60-second walkthrough of `init` → first message → agent response is coming
 
 ## Commands
 
+After init, the `sento` command is available (run `source ~/.bashrc` or open a new terminal):
+
 ```bash
 # Setup
-npx sentoagent init           # Set up a new agent
-npx sentoagent update         # Update Claude Code, plugins, and patches
+npx sentoagent init       # Set up a new agent (first time only)
+sento update              # Update Claude Code, plugins, CLI, and patches
 
 # Monitor
-npx sentoagent status         # Check if your agent is running and healthy
-npx sentoagent logs           # View agent output (last 30 lines)
-npx sentoagent logs -n 100    # View more lines
-npx sentoagent logs --watchdog # View auto-restart history
+sento status              # Check if your agent is running and healthy
+sento logs                # View agent output (last 30 lines)
+sento logs -n 100         # View more lines
+sento logs --watchdog     # View auto-restart history
 
 # Configure
-npx sentoagent config         # Change model, tokens, keys, settings
-npx sentoagent channels       # Add/remove communication channels (Discord, Telegram, Slack)
+sento config              # Change model, tokens, keys, settings
+sento channels            # Add/remove communication channels (Discord, Telegram, Slack)
 
 # Skills
-npx sentoagent skills         # List installed plugins and custom skills
-npx sentoagent skills install # Install a plugin from the marketplace
-npx sentoagent skills export  # Export a custom skill to share
-npx sentoagent skills import  # Import a skill from another agent
+sento skills              # List installed plugins and custom skills
+sento skills install      # Install a plugin from the marketplace
+sento skills export       # Export a custom skill to share
+sento skills import       # Import a skill from another agent
 
 # Process Control
-npx sentoagent start          # Start the agent
-npx sentoagent stop           # Stop the agent
-npx sentoagent restart        # Restart the agent
+sento start               # Start the agent
+sento stop                # Stop the agent
+sento restart             # Restart the agent
 
 # Agent-to-Agent Communication
-npx sentoagent pair           # Pair with another agent
-npx sentoagent agents         # List your agent code and paired agents
+sento pair                # Pair with another agent
+sento agents              # List your agent code and paired agents
 
 # Diagnostics
-npx sentoagent doctor         # Check for issues (12 checks)
-npx sentoagent doctor --fix   # Auto-fix what's possible
+sento doctor              # Check for issues (12 checks)
+sento doctor --fix        # Auto-fix what's possible
 ```
 
 ## How It Works
