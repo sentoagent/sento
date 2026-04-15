@@ -172,9 +172,14 @@ node /opt/sento/bin/sento.js 2>/dev/null &
 
 echo "Starting $AGENT_NAME (channels: $CHANNEL_LIST)..."
 
-# Run Claude Code with all configured channels (restarts on crash)
+# Run Claude Code in tmux (needs a PTY to run interactively)
+tmux new-session -d -s $AGENT_NAME "while true; do claude --dangerously-skip-permissions $CHANNEL_FLAGS; echo 'Agent exited. Restarting in 15s...'; sleep 15; done"
+
+# Keep container alive and tail the tmux output
 while true; do
-  claude --dangerously-skip-permissions $CHANNEL_FLAGS
-  echo "Agent exited. Restarting in 15s..."
-  sleep 15
+  sleep 30
+  if ! tmux has-session -t $AGENT_NAME 2>/dev/null; then
+    echo "Session died. Restarting..."
+    tmux new-session -d -s $AGENT_NAME "while true; do claude --dangerously-skip-permissions $CHANNEL_FLAGS; sleep 15; done"
+  fi
 done
