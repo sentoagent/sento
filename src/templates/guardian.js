@@ -18,12 +18,24 @@ const LOG = HOME + '/workspace/memory/guardian.log';
 const STATE = '/tmp/sento-guardian-' + SESSION + '.json';
 const MAX = 3;
 
+// ─── Config loading (must be before detectChannel) ───
+const CONFIG_PATH = HOME + '/workspace/.sento-config.json';
+let _configCache = {};
+let _configLastLoad = 0;
+function loadSentoConfig() {
+  try { _configCache = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')); } catch {}
+  _configLastLoad = Date.now();
+  return _configCache;
+}
+function getSentoConfig() { return _configCache; }
+loadSentoConfig();
+
 // ─── Channel Abstraction ───
 // Guardian works with any channel: Discord, Telegram, Slack, iMessage.
 // It detects which channel is active and uses the correct API.
 
 function detectChannel() {
-  const cfg = loadSentoConfig();
+  const cfg = getSentoConfig();
   const channelType = cfg.channelType || null;
   const channelsDir = HOME + '/.claude/channels';
 
@@ -219,19 +231,7 @@ async function handleCommands() {
 }
 
 // ─── Agent-to-Agent Communication Server ───
-const CONFIG_PATH = HOME + '/workspace/.sento-config.json';
 const RATE_LIMIT = new Map();
-
-let _configCache = {};
-let _configLastLoad = 0;
-function loadSentoConfig() {
-  try { _configCache = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')); } catch {}
-  _configLastLoad = Date.now();
-  return _configCache;
-}
-function getSentoConfig() { return _configCache; }
-
-loadSentoConfig();
 const COMMS_PORT = _configCache.commsPort || 9876;
 
 function verifySignature(body, signature, secret) {
