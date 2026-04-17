@@ -24,9 +24,41 @@ function runSetupToken(claudeBin, env) {
     });
 
     let output = "";
+    let urlPrinted = false;
+
     child.stdout.on("data", (chunk) => {
       const text = chunk.toString();
       output += text;
+
+      // Skip banner art and spinner frames
+      if (text.includes("█") || text.includes("░") || text.includes("▓") ||
+          text.includes("Opening browser") || text.includes("Welcome to Claude") ||
+          text.includes("………") || text.trim() === "" || text.trim() === "*") {
+
+        // But still check for the URL inside banner output
+        if (!urlPrinted) {
+          const urlMatch = text.match(/https:\/\/claude\.com\S+/);
+          if (urlMatch) {
+            console.log("\n  Open this URL on your phone or laptop:\n");
+            console.log(`  ${urlMatch[0]}\n`);
+            urlPrinted = true;
+          }
+        }
+        return;
+      }
+
+      // Check for URL in non-banner text
+      if (!urlPrinted) {
+        const urlMatch = text.match(/https:\/\/claude\.com\S+/);
+        if (urlMatch) {
+          console.log("\n  Open this URL on your phone or laptop:\n");
+          console.log(`  ${urlMatch[0]}\n`);
+          urlPrinted = true;
+          return;
+        }
+      }
+
+      // Pass through everything else (code prompts, token output, etc.)
       process.stdout.write(text);
     });
 
