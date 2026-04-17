@@ -28,7 +28,15 @@ export async function collectConfig() {
       message: "Bot token:",
       suffix: chalk.dim(`\n  Discord: discord.com/developers/applications > New App > Bot > Reset Token\n  Required bot permissions: View Channels, Send Messages, Send Messages in Threads,\n  Read Message History, Attach Files, Add Reactions\n  Required intents: Message Content Intent, Server Members Intent\n  (Bot tab > Privileged Gateway Intents > enable both)`),
       mask: "*",
-      validate: (v) => v.length > 10 || "Please paste your bot token",
+      validate: (v) => {
+        v = v.trim();
+        if (v.length < 20) return "Token too short. Copy the full token from Discord Developer Portal.";
+        if (v.includes(".") && v.split(".").length < 3) return "Token looks incomplete. Make sure you copied the full token.";
+        if (v.startsWith("sk-ant-")) return "That looks like a Claude token, not a Discord bot token.";
+        if (v.startsWith("xoxb-")) return "That looks like a Slack token, not a Discord bot token.";
+        if (/^(\S+)\1+$/.test(v)) return "Looks like the token was pasted twice. Try again with a single paste.";
+        return true;
+      },
       when: (a) => a.channelType === "discord",
     },
     {
@@ -37,7 +45,14 @@ export async function collectConfig() {
       message: "Bot token:",
       suffix: chalk.dim(`\n  Telegram: message @BotFather > /newbot > copy the token`),
       mask: "*",
-      validate: (v) => v.length > 10 || "Please paste your bot token",
+      validate: (v) => {
+        v = v.trim();
+        if (v.length < 20) return "Token too short. Copy the full token from BotFather.";
+        if (!v.includes(":")) return "Telegram tokens look like 123456789:ABCdef... Make sure you copied the right one.";
+        if (v.startsWith("sk-ant-")) return "That looks like a Claude token, not a Telegram bot token.";
+        if (/^(\S+)\1+$/.test(v)) return "Looks like the token was pasted twice. Try again with a single paste.";
+        return true;
+      },
       when: (a) => a.channelType === "telegram",
     },
     {
@@ -46,7 +61,14 @@ export async function collectConfig() {
       message: "Bot token:",
       suffix: chalk.dim(`\n  Slack: api.slack.com/apps > Create App > OAuth > Bot User Token`),
       mask: "*",
-      validate: (v) => v.length > 10 || "Please paste your bot token",
+      validate: (v) => {
+        v = v.trim();
+        if (v.length < 20) return "Token too short. Copy the full token from Slack.";
+        if (!v.startsWith("xoxb-")) return "Slack bot tokens start with xoxb-. Make sure you copied the Bot User OAuth Token.";
+        if (v.startsWith("sk-ant-")) return "That looks like a Claude token, not a Slack bot token.";
+        if (/^(\S+)\1+$/.test(v)) return "Looks like the token was pasted twice. Try again with a single paste.";
+        return true;
+      },
       when: (a) => a.channelType === "slack",
     },
     {
