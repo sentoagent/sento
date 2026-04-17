@@ -30,35 +30,27 @@ function runSetupToken(claudeBin, env) {
       const text = chunk.toString();
       output += text;
 
-      // Skip banner art and spinner frames
-      if (text.includes("█") || text.includes("░") || text.includes("▓") ||
-          text.includes("Opening browser") || text.includes("Welcome to Claude") ||
-          text.includes("………") || text.trim() === "" || text.trim() === "*") {
-
-        // But still check for the URL inside banner output
-        if (!urlPrinted) {
-          const urlMatch = text.match(/https:\/\/claude\.com\S+/);
-          if (urlMatch) {
-            console.log("\n  Open this URL on your phone or laptop:\n");
-            console.log(`  ${urlMatch[0]}\n`);
-            urlPrinted = true;
-          }
-        }
-        return;
-      }
-
-      // Check for URL in non-banner text
+      // Check for URL
       if (!urlPrinted) {
         const urlMatch = text.match(/https:\/\/claude\.com\S+/);
         if (urlMatch) {
           console.log("\n  Open this URL on your phone or laptop:\n");
           console.log(`  ${urlMatch[0]}\n`);
+          console.log("  After logging in, paste the authorization code below.");
+          console.log("  (This is NOT your Discord/Telegram bot token)\n");
           urlPrinted = true;
           return;
         }
       }
 
-      // Pass through everything else (code prompts, token output, etc.)
+      // Before URL: suppress banner spam
+      if (!urlPrinted) return;
+
+      // After URL: pass through everything (code prompt, token, etc.)
+      // but still suppress banner art if it re-renders
+      if (text.includes("█") || text.includes("░") || text.includes("▓") ||
+          text.includes("………") || text.includes("Welcome to Claude")) return;
+
       process.stdout.write(text);
     });
 
