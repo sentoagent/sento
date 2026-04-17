@@ -1,13 +1,13 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { spawn } from "child_process";
 import { log } from "../utils/logger.js";
 
 function appendToFile(filePath, key, value) {
   const content = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf-8") : "";
   const line = `export ${key}=${value}`;
   if (content.includes(`export ${key}=`)) {
-    // Replace existing
     const updated = content.replace(new RegExp(`export ${key}=.*`, "g"), line);
     fs.writeFileSync(filePath, updated);
   } else {
@@ -15,17 +15,45 @@ function appendToFile(filePath, key, value) {
   }
 }
 
+function runSetupToken(claudeBin, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(claudeBin, ["setup-token"], {
+      stdio: ["inherit", "pipe", "inherit"],
+      env,
+      timeout: 180000,
+    });
+
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+      const text = chunk.toString();
+      output += text;
+      process.stdout.write(text);
+    });
+
+    child.on("close", (code) => {
+      const match = output.match(/sk-ant-oat01-\S+/);
+      if (match) {
+        resolve(match[0]);
+      } else if (code === 0) {
+        reject(new Error("setup-token completed but no token found in output"));
+      } else {
+        reject(new Error(`setup-token exited with code ${code}`));
+      }
+    });
+
+    child.on("error", reject);
+  });
+}
+
 export async function configureAuth(config) {
   log.step("Configuring authentication...");
 
   const bashrc = path.join(os.homedir(), ".bashrc");
+  const claudeBin = path.join(os.homedir(), ".npm-global/bin/claude");
 
-  appendToFile(bashrc, "CLAUDE_CODE_OAUTH_TOKEN", config.oauthToken);
   appendToFile(bashrc, "DISPLAY", ":99");
   appendToFile(bashrc, "PATH", "$HOME/.npm-global/bin:$HOME/.bun/bin:$PATH");
 
-  // Ensure .profile sources .bashrc for login shells (SSH).
-  // Some systems (Debian) only read .profile on login, not .bashrc.
   const profile = path.join(os.homedir(), ".profile");
   const profileContent = fs.existsSync(profile) ? fs.readFileSync(profile, "utf-8") : "";
   if (!profileContent.includes(".bashrc")) {
@@ -39,7 +67,6 @@ export async function configureAuth(config) {
     appendToFile(bashrc, "CLAWMEM_EMBED_MODEL", "gemini-embedding-001");
   }
 
-  // Create .claude.json with onboarding complete
   const claudeJson = path.join(os.homedir(), ".claude.json");
   let claudeConfig = {};
   if (fs.existsSync(claudeJson)) {
@@ -48,5 +75,31 @@ export async function configureAuth(config) {
   claudeConfig.hasCompletedOnboarding = true;
   fs.writeFileSync(claudeJson, JSON.stringify(claudeConfig, null, 2));
 
-  log.success("Auth configured");
+  // If token already provided (backward compat), use it directly
+  if (config.oauthToken) {
+    appendToFile(bashrc, "CLAUDE_CODE_OAUTH_TOKEN", config.oauthToken);
+    log.success("Auth configured");
+    return;
+  }
+
+  // Run claude setup-token inline — user sees URL, opens on phone, token captured
+  const env = {
+    ...process.env,
+    PATH: `${os.homedir()}/.npm-global/bin:${os.homedir()}/.bun/bin:${process.env.PATH}`,
+  };
+
+  log.info("Authenticating with Claude...");
+  log.info("A URL will appear below. Open it on your phone or laptop to log in.\n");
+
+  try {
+    const token = await runSetupToken(claudeBin, env);
+    config.oauthToken = token;
+    appendToFile(bashrc, "CLAUDE_CODE_OAUTH_TOKEN", token);
+    console.log("");
+    log.success("Auth configured");
+  } catch (err) {
+    log.error(`Authentication failed: ${err.message}`);
+    log.info("You can run 'claude setup-token' manually and then 'sento config' to set the token.");
+    throw err;
+  }
 }

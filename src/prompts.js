@@ -12,15 +12,6 @@ export async function collectConfig() {
         /^[a-z0-9-]{2,20}$/.test(v) || "Lowercase letters, numbers, and hyphens only (2-20 chars)",
     },
     {
-      type: "password",
-      name: "oauthToken",
-      message: `Claude Code OAuth token:`,
-      suffix: chalk.dim(`\n  Get one: run "claude setup-token" on any machine with Claude Code\n  Requires a Claude plan with API access (Max, Team, or Enterprise)\n  >`),
-      mask: "*",
-      validate: (v) =>
-        v.startsWith("sk-ant-oat01-") || "Should start with sk-ant-oat01-. Run 'claude setup-token' to get one.",
-    },
-    {
       type: "list",
       name: "channelType",
       message: "Messaging channel:",
