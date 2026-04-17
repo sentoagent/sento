@@ -42,6 +42,10 @@ export async function checkPrerequisites() {
     const bunVersion = await getVersion("bun", ["--version"]);
     log.success(`Bun ${bunVersion || "found"}`);
   } else {
+    // Bun installer requires unzip
+    if (os.platform() === "linux" && !(await commandExists("unzip"))) {
+      await runWithSpinner("Installing unzip (needed for Bun)", "sudo", ["apt-get", "install", "-y", "unzip"], { allowFail: true });
+    }
     log.info("Bun not found. Installing...");
     await runWithSpinner("Installing Bun", "bash", ["-c", "curl -fsSL https://bun.sh/install | bash"], { allowFail: true });
     if (await commandExists(bunPath)) {
@@ -53,13 +57,22 @@ export async function checkPrerequisites() {
 
   // System packages (Linux only)
   if (os.platform() === "linux") {
-    const sysPackages = ["tmux", "git", "python3", "cmake"];
+    const sysPackages = ["tmux", "git", "python3", "cmake", "unzip", "cron"];
     const missing = [];
     for (const pkg of sysPackages) {
       if (await commandExists(pkg)) {
         log.success(pkg);
       } else {
         missing.push(pkg);
+      }
+    }
+
+    // cron check: commandExists won't find it since the binary is "cron" daemon, check service
+    if (!missing.includes("cron")) {
+      try {
+        await run("crontab", ["-l"], { allowFail: true });
+      } catch {
+        missing.push("cron");
       }
     }
 
@@ -71,6 +84,12 @@ export async function checkPrerequisites() {
         ["apt-get", "install", "-y", ...missing, "build-essential"],
         { allowFail: true }
       );
+
+      // Ensure cron is enabled and started
+      if (missing.includes("cron")) {
+        await run("sudo", ["systemctl", "enable", "cron"], { allowFail: true });
+        await run("sudo", ["systemctl", "start", "cron"], { allowFail: true });
+      }
     }
 
     // Xvfb + Chromium (for Playwright browser automation)
