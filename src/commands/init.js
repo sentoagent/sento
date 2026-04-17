@@ -122,6 +122,25 @@ export async function init() {
     );
     log.success(`Agent "${config.agentName}" is running!`);
 
+    // Auto-accept trust prompt in the agent session (Claude Code may show it again)
+    log.info("Waiting for agent to initialize...");
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        const output = execFileSync("tmux", ["capture-pane", "-t", config.agentName, "-p"], { encoding: "utf-8", timeout: 5000 });
+        if (output.includes("trust this folder") || output.includes("Yes, I trust")) {
+          execFileSync("tmux", ["send-keys", "-t", config.agentName, "Enter"], { timeout: 5000 });
+          log.success("Workspace trust accepted");
+          await new Promise(r => setTimeout(r, 3000));
+          break;
+        }
+        if (output.includes("Listening for") || output.includes("❯")) {
+          log.success("Agent initialized");
+          break;
+        }
+      } catch {}
+    }
+
     // Launch Guardian via nohup (survives after sento init exits)
     const guardianLog = path.join(os.homedir(), "workspace/memory/guardian.log");
     try {
