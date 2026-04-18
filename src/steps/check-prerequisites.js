@@ -57,7 +57,7 @@ export async function checkPrerequisites() {
 
   // System packages (Linux only)
   if (os.platform() === "linux") {
-    const sysPackages = ["tmux", "git", "python3", "cmake", "unzip", "cron"];
+    const sysPackages = ["tmux", "git", "python3", "cmake", "unzip"];
     const missing = [];
     for (const pkg of sysPackages) {
       if (await commandExists(pkg)) {
@@ -67,25 +67,39 @@ export async function checkPrerequisites() {
       }
     }
 
-    // cron check: commandExists won't find it since the binary is "cron" daemon, check service
-    if (!missing.includes("cron")) {
-      try {
-        await run("crontab", ["-l"], { allowFail: true });
-      } catch {
+    // cron: check if service is running (not commandExists, since cron is a daemon)
+    try {
+      const { stdout } = await run("systemctl", ["is-active", "cron"], { allowFail: true });
+      if (stdout && stdout.trim() === "active") {
+        log.success("cron");
+      } else {
+        missing.push("cron");
+      }
+    } catch {
+      // systemctl not available or cron not installed
+      if (await commandExists("crontab")) {
+        log.success("cron");
+      } else {
         missing.push("cron");
       }
     }
 
     if (missing.length > 0) {
       log.info(`Missing: ${missing.join(", ")}. Installing...`);
+      const toInstall = [...missing];
+      // Only add build-essential if it's not already installed
+      try {
+        await run("dpkg", ["-s", "build-essential"], { allowFail: true });
+      } catch {
+        toInstall.push("build-essential");
+      }
       await runWithSpinner(
-        `Installing ${missing.join(", ")}`,
+        `Installing ${toInstall.join(", ")}`,
         "sudo",
-        ["apt-get", "install", "-y", ...missing, "build-essential"],
+        ["apt-get", "install", "-y", ...toInstall],
         { allowFail: true }
       );
 
-      // Ensure cron is enabled and started
       if (missing.includes("cron")) {
         await run("sudo", ["systemctl", "enable", "cron"], { allowFail: true });
         await run("sudo", ["systemctl", "start", "cron"], { allowFail: true });
