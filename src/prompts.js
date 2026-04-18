@@ -101,12 +101,16 @@ export async function collectConfig() {
       suffix: chalk.dim(`\n  How to get: Discord > Settings > Advanced > turn on Developer Mode\n  Then right-click any channel > Copy Channel ID\n  >`),
       when: (a) => a.discordScope === "channels",
       validate: (v) => {
-        const ids = v.split(",").map((s) => s.trim()).filter(Boolean);
+        const str = Array.isArray(v) ? v.join(",") : String(v);
+        const ids = str.split(",").map((s) => s.trim()).filter(Boolean);
         if (ids.length === 0) return "Add at least one channel ID.";
         if (ids.some((id) => !/^\d+$/.test(id))) return "Channel IDs should be numbers only.";
         return true;
       },
-      filter: (v) => v.split(",").map((s) => s.trim()).filter(Boolean),
+      filter: (v) => {
+        const str = Array.isArray(v) ? v.join(",") : String(v);
+        return str.split(",").map((s) => s.trim()).filter(Boolean);
+      },
     },
     {
       type: "confirm",
