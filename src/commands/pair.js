@@ -8,7 +8,7 @@ import path from "path";
 
 const gold = chalk.hex("#FFD700");
 
-export async function pair() {
+export async function pair(opts = {}) {
   banner();
   log.step("Agent Pairing");
 
@@ -21,6 +21,51 @@ export async function pair() {
   }
 
   const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+
+  // Non-interactive mode: sento pair --host X --port Y --my-host Z
+  if (opts.host && opts.myHost) {
+    const targetHost = opts.host.trim();
+    const targetPort = parseInt(opts.port) || 9876;
+    const myHost = opts.myHost.trim();
+
+    log.info(`Sending pairing request to ${targetHost}:${targetPort}...`);
+
+    const requestData = JSON.stringify({
+      fromName: config.agentName,
+      fromCode: config.agentCode,
+      fromHost: myHost,
+      fromPort: config.commsPort || 9876,
+    });
+
+    try {
+      await new Promise((resolve, reject) => {
+        const req = http.request({
+          hostname: targetHost,
+          port: targetPort,
+          path: "/pair-request",
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(requestData) },
+          timeout: 10000,
+        }, (res) => {
+          let body = "";
+          res.on("data", (c) => { body += c; });
+          res.on("end", () => {
+            if (res.statusCode === 200) resolve(body);
+            else reject(new Error("Rejected: " + body));
+          });
+        });
+        req.on("error", reject);
+        req.on("timeout", () => { req.destroy(); reject(new Error("Connection timed out")); });
+        req.write(requestData);
+        req.end();
+      });
+
+      log.success("Pairing request sent! Waiting for the other agent's owner to accept.");
+    } catch (err) {
+      log.error("Could not reach the other agent: " + err.message);
+    }
+    return;
+  }
 
   console.log(`  Your agent code: ${gold.bold(config.agentCode)}`);
   console.log(`  Your comms port: ${gold(config.commsPort || 9876)}`);
@@ -66,16 +111,6 @@ export async function pair() {
       },
     ]);
 
-    log.info("Sending pairing request...");
-
-    const requestData = JSON.stringify({
-      fromName: config.agentName,
-      fromCode: config.agentCode,
-      fromHost: answers.host, // This should be OUR host for them to call back
-      fromPort: config.commsPort || 9876,
-    });
-
-    // Ask for our own host address so the other agent can reach us
     const { myHost } = await inquirer.prompt([{
       type: "input",
       name: "myHost",
@@ -84,7 +119,9 @@ export async function pair() {
       validate: (v) => v.trim().length > 0 || "Required",
     }]);
 
-    const correctedData = JSON.stringify({
+    log.info("Sending pairing request...");
+
+    const requestData = JSON.stringify({
       fromName: config.agentName,
       fromCode: config.agentCode,
       fromHost: myHost.trim(),
@@ -95,10 +132,10 @@ export async function pair() {
       await new Promise((resolve, reject) => {
         const req = http.request({
           hostname: answers.host.trim(),
-          port: answers.port,
+          port: parseInt(answers.port) || 9876,
           path: "/pair-request",
           method: "POST",
-          headers: { "Content-Type": "application/json", "Content-Length": correctedData.length },
+          headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(requestData) },
           timeout: 10000,
         }, (res) => {
           let body = "";
@@ -110,7 +147,7 @@ export async function pair() {
         });
         req.on("error", reject);
         req.on("timeout", () => { req.destroy(); reject(new Error("Connection timed out")); });
-        req.write(correctedData);
+        req.write(requestData);
         req.end();
       });
 

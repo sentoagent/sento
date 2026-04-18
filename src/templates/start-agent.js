@@ -20,7 +20,7 @@ export function renderStartAgent(config) {
 ${envLines.join("\n")}
 cd ~/workspace
 while true; do
-  claude --dangerously-skip-permissions --channels ${channelPlugin}
+  claude --dangerously-skip-permissions --model ${config.model || "sonnet"} --channels ${channelPlugin}
   sleep 15
 done
 `;

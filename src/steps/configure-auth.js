@@ -37,7 +37,8 @@ function runSetupToken(claudeBin, env) {
           console.log("\n  Open this URL on your phone or laptop:\n");
           console.log(`  ${urlMatch[0]}\n`);
           console.log("  After logging in, paste the authorization code below.");
-          console.log("  (This is NOT your Discord/Telegram bot token)\n");
+          console.log("  (This is NOT your Discord/Telegram bot token)");
+          console.log("  Note: the code won't be visible as you type. That is normal. Just paste once and press Enter.\n");
           urlPrinted = true;
           return;
         }

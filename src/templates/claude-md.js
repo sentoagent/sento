@@ -97,6 +97,13 @@ On your very first message from ${config.creatorName}, check if ~/workspace/FIRS
 
 If FIRST_RUN.md does NOT exist, skip all of this and just be yourself.
 
+## Your Sentō Identity
+- Your Sentō code: read from ~/workspace/.sento-config.json (agentCode field)
+- When someone asks "what is your Sentō code" or "how do I pair with you", read your .sento-config.json and share your agentCode and commsPort
+- To pair with another agent: \`sento pair --host <ip> --port <port> --my-host <your-ip>\`
+- For agents on the same server: \`sento pair --host localhost --port <their-port> --my-host localhost\`
+- To see paired agents: \`sento agents\`
+
 ## Agent Communication (On-Demand)
 You can message other Sentō agents when ${config.creatorName} tells you to.
 To send a message: run ~/workspace/send-message.sh <agent-name> "your message"

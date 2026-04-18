@@ -79,6 +79,9 @@ program
 program
   .command("pair")
   .description("Pair with another Sentō agent for communication")
+  .option("--host <host>", "Other agent's host (IP or domain)")
+  .option("--port <port>", "Other agent's comms port", "9876")
+  .option("--my-host <myHost>", "Your host address (how the other agent reaches you)")
   .action(pair);
 
 program

@@ -185,6 +185,16 @@ export async function collectConfig() {
     },
     {
       type: "list",
+      name: "model",
+      message: "Agent model:",
+      choices: [
+        { name: "Sonnet 4.6 (fast, recommended)", value: "sonnet" },
+        { name: "Opus 4.6 (powerful, slower)", value: "opus" },
+        { name: "Haiku 4.5 (fastest, lighter)", value: "haiku" },
+      ],
+    },
+    {
+      type: "list",
       name: "timezone",
       message: "Your timezone:",
       choices: [
