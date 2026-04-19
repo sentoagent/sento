@@ -451,12 +451,101 @@ async function checkPairResponse() {
   } catch {}
 }
 
+// ─── Auto-Update ───
+let lastUpdateCheck = 0;
+const UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+
+function detectInstallMethod() {
+  if (fs.existsSync('/.dockerenv')) return 'docker';
+  const npmPkg = HOME + '/.npm-global/lib/node_modules/sentoagent/package.json';
+  if (fs.existsSync(npmPkg)) return 'npm';
+  if (fs.existsSync('/opt/sento/.git')) return 'git';
+  return 'npm'; // default
+}
+
+function getLocalVersion() {
+  try {
+    const paths = [
+      HOME + '/.npm-global/lib/node_modules/sentoagent/package.json',
+      '/opt/sento/package.json',
+    ];
+    for (const p of paths) {
+      if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8')).version;
+    }
+  } catch {}
+  return '0.0.0';
+}
+
+async function checkForUpdates() {
+  const now = Date.now();
+  if (now - lastUpdateCheck < UPDATE_INTERVAL) return;
+  lastUpdateCheck = now;
+
+  const method = detectInstallMethod();
+  log('Update check (' + method + ')...');
+
+  try {
+    if (method === 'npm') {
+      const latest = execFileSync('npm', ['view', 'sentoagent', 'version'], { encoding: 'utf-8', timeout: 15000, env: { ...process.env, PATH: HOME + '/.npm-global/bin:' + HOME + '/.bun/bin:/usr/local/bin:/usr/bin:/bin' } }).trim();
+      const local = getLocalVersion();
+      if (latest && latest !== local) {
+        log('Update available: ' + local + ' -> ' + latest);
+        notify('\\u2B06\\uFE0F Updating **' + SESSION + '** from v' + local + ' to v' + latest + '...');
+        const env = { ...process.env, NPM_CONFIG_PREFIX: HOME + '/.npm-global', PATH: HOME + '/.npm-global/bin:' + HOME + '/.bun/bin:/usr/local/bin:/usr/bin:/bin' };
+        execFileSync('npm', ['install', '-g', '--prefix', HOME + '/.npm-global', 'sentoagent@latest'], { timeout: 60000, env });
+        // Run sento update to regenerate Guardian + patches
+        try { execFileSync(HOME + '/.npm-global/bin/sento', ['update'], { timeout: 120000, cwd: HOME + '/workspace', env }); } catch {}
+        log('Updated to v' + latest + '. Restarting Guardian...');
+        notify('\\u2705 Updated to v' + latest + '. Guardian restarting...');
+        // Exit — cron @reboot or watchdog will relaunch
+        setTimeout(() => process.exit(0), 2000);
+        return;
+      }
+      log('Up to date (v' + local + ')');
+    }
+
+    if (method === 'git') {
+      const gitDir = fs.existsSync('/opt/sento/.git') ? '/opt/sento' : HOME + '/workspace';
+      execFileSync('git', ['fetch'], { cwd: gitDir, timeout: 15000 });
+      const behind = execFileSync('git', ['rev-list', 'HEAD..origin/main', '--count'], { cwd: gitDir, encoding: 'utf-8', timeout: 5000 }).trim();
+      if (parseInt(behind) > 0) {
+        log('Git: ' + behind + ' commits behind. Pulling...');
+        notify('\\u2B06\\uFE0F Updating **' + SESSION + '** (' + behind + ' new commits)...');
+        execFileSync('git', ['pull', 'origin', 'main'], { cwd: gitDir, timeout: 30000 });
+        try { execFileSync('npm', ['install', '--production'], { cwd: gitDir, timeout: 60000 }); } catch {}
+        log('Git updated. Restarting Guardian...');
+        notify('\\u2705 Updated. Guardian restarting...');
+        setTimeout(() => process.exit(0), 2000);
+        return;
+      }
+      log('Git up to date');
+    }
+
+    if (method === 'docker') {
+      // Docker containers can't self-update. Just notify.
+      // Check by comparing local version with npm registry
+      try {
+        const latest = execFileSync('npm', ['view', 'sentoagent', 'version'], { encoding: 'utf-8', timeout: 15000 }).trim();
+        const local = getLocalVersion();
+        if (latest && latest !== local) {
+          notify('\\u2B06\\uFE0F New Sent\\u014D version available (v' + latest + '). Rebuild: docker compose build && docker compose up -d');
+          log('Docker update available: ' + local + ' -> ' + latest);
+        }
+      } catch {}
+    }
+  } catch (e) {
+    log('Update check failed: ' + e.message);
+  }
+}
+
 // ─── Main loop ───
 log('Guardian started');
+checkForUpdates(); // Check on startup
 setInterval(() => {
   loadSentoConfig();
   CHANNEL = detectChannel();
   check(); handleCommands(); checkPairResponse();
+  checkForUpdates();
 }, 30000);
 check();
 `;

@@ -9,6 +9,13 @@ STATE_FILE="/tmp/sento-watchdog-\${SESSION}.state"
 RESTART_LOG="/tmp/sento-watchdog-\${SESSION}.restarts"
 LOG="\$HOME/workspace/memory/watchdog.log"
 
+# ─── Guardian health check ───
+# If Guardian is not running, relaunch it (may have exited after auto-update)
+if ! pgrep -u "$(whoami)" -f "guardian.mjs" > /dev/null 2>&1; then
+  echo "$(date): Guardian not running. Relaunching..." >> "\$LOG"
+  cd "\$HOME/workspace" && nohup node guardian.mjs >> memory/guardian.log 2>&1 &
+fi
+
 # ─── Capture tmux output ───
 OUTPUT=$(tmux capture-pane -t "\$SESSION" -p -S -30 2>/dev/null)
 if [ -z "\$OUTPUT" ]; then
