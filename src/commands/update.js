@@ -55,6 +55,31 @@ export async function update() {
   // Re-apply channel patches (Discord guild matching + buffer, Telegram buffer)
   await patchChannels({ patchAll: true });
 
+  // Regenerate Guardian with latest template
+  try {
+    const configPath = path.join(workspace, ".sento-config.json");
+    if (fs.existsSync(configPath)) {
+      const sentoConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      // Read language from CLAUDE.md
+      let language = "English";
+      const claudeMd = fs.readFileSync(path.join(workspace, "CLAUDE.md"), "utf-8");
+      const langMatch = claudeMd.match(/- Language: (.+)/);
+      if (langMatch) language = langMatch[1].trim();
+
+      const { renderGuardian } = await import("../templates/guardian.js");
+      const guardianConfig = {
+        agentName: sentoConfig.agentName || "agent",
+        channelType: sentoConfig.channelType || "discord",
+        language,
+      };
+      fs.writeFileSync(path.join(workspace, "guardian.mjs"), renderGuardian(guardianConfig));
+      fs.chmodSync(path.join(workspace, "guardian.mjs"), 0o700);
+      log.success("Guardian updated");
+    }
+  } catch (e) {
+    log.warn("Could not update Guardian: " + e.message);
+  }
+
   // Update ClawMem
   const bunBin = path.join(home, ".bun/bin");
   if (await commandExists(path.join(bunBin, "clawmem"))) {
