@@ -192,6 +192,27 @@ function restart() {
   }, 2000);
 }
 
+// ─── Permission prompt detection + forwarding ───
+const PERM_PATTERNS = [
+  'Do you want to proceed',
+  'requested permissions',
+  'is a sensitive file',
+  'Yes, and always allow',
+  'Esc to cancel',
+];
+const LANG = '${config.language || "English"}';
+function permissionMessage(details) {
+  if (LANG.toLowerCase().startsWith('es') || LANG.toLowerCase() === 'spanish')
+    return '\\uD83D\\uDD12 **' + SESSION + '** necesita permiso:\\n' + details + '\\nResponde **yes** para aprobar o **no** para denegar.';
+  if (LANG.toLowerCase().startsWith('pt') || LANG.toLowerCase() === 'portuguese')
+    return '\\uD83D\\uDD12 **' + SESSION + '** precisa de permiss\\u00E3o:\\n' + details + '\\nResponda **yes** para aprovar ou **no** para negar.';
+  if (LANG.toLowerCase().startsWith('ja') || LANG.toLowerCase() === 'japanese')
+    return '\\uD83D\\uDD12 **' + SESSION + '** \\u306F\\u8A31\\u53EF\\u304C\\u5FC5\\u8981\\u3067\\u3059:\\n' + details + '\\n**yes** \\u3067\\u627F\\u8A8D\\u3001**no** \\u3067\\u62D2\\u5426\\u3057\\u3066\\u304F\\u3060\\u3055\\u3044\\u3002';
+  if (LANG.toLowerCase().startsWith('zh') || LANG.toLowerCase() === 'chinese')
+    return '\\uD83D\\uDD12 **' + SESSION + '** \\u9700\\u8981\\u6743\\u9650:\\n' + details + '\\n\\u56DE\\u590D **yes** \\u6279\\u51C6\\u6216 **no** \\u62D2\\u7EDD\\u3002';
+  return '\\uD83D\\uDD12 **' + SESSION + '** needs permission:\\n' + details + '\\nReply **yes** to approve or **no** to deny.';
+}
+
 // ─── Health check ───
 function check() {
   const s = ld(), now = Date.now();
@@ -200,6 +221,41 @@ function check() {
   if (!alive()) { log('Dead.'); notify('\\uD83D\\uDD04 **' + SESSION + '** went down. Restarting...'); restart(); s.restarts.push(now); s.status = 'restarting'; s.failCount = 0; sv(s); return; }
 
   const o = tm(); if (!o) { s.status = 'ok'; s.failCount = 0; sv(s); return; }
+
+  // Check for permission prompts FIRST (before other checks)
+  if (s.status !== 'awaiting_permission') {
+    const hasPermPrompt = PERM_PATTERNS.some(p => o.includes(p));
+    if (hasPermPrompt) {
+      // Extract what permission is being asked
+      const lines = o.split('\\n').filter(l => l.trim());
+      const details = lines.filter(l =>
+        l.includes('requested permissions') || l.includes('sensitive file') ||
+        l.includes('Bash command') || l.includes('Edit') || l.includes('Write') ||
+        l.includes('.bashrc') || l.includes('.ssh') || l.includes('.env') ||
+        l.includes('Do you want') || l.includes('/home/')
+      ).slice(-5).join('\\n');
+      log('Permission prompt detected');
+      notify(permissionMessage(details || 'Action requires approval'));
+      s.status = 'awaiting_permission';
+      s.permissionAskedAt = now;
+      sv(s);
+      return;
+    }
+  }
+
+  // Auto-deny after 5 minutes of no response
+  if (s.status === 'awaiting_permission' && s.permissionAskedAt && now - s.permissionAskedAt > 300000) {
+    log('Permission timeout - auto-denying');
+    try { execFileSync('tmux', ['send-keys', '-t', SESSION, 'Escape'], { timeout: 5000 }); } catch {}
+    s.status = 'ok';
+    delete s.permissionAskedAt;
+    sv(s);
+    notify('\\u23F0 Permission timed out (5 min). Auto-denied.');
+    return;
+  }
+
+  if (s.status === 'awaiting_permission') { sv(s); return; }
+
   const i = (o.match(/\\u2190 discord|\\u2190 telegram|\\u2190 slack/g) || []).length;
   const r = (o.match(/discord - reply|telegram.*reply|slack.*reply/g) || []).length;
   const e = (o.match(/API Error:|error.*Overloaded|Could not process/g) || []).length;
@@ -221,7 +277,35 @@ function check() {
 
 // ─── Command handler (works on any channel) ───
 async function handleCommands() {
-  const s = ld(); if (s.status !== 'failed') return;
+  const s = ld();
+
+  // Handle permission responses
+  if (s.status === 'awaiting_permission') {
+    const cmds = await readCommands();
+    for (const c of cmds) {
+      if (c === 'yes' || c === 'y' || c === 'approve' || c === 'si' || c === 'sim' || c === 'ok') {
+        log('Permission approved by user');
+        try { execFileSync('tmux', ['send-keys', '-t', SESSION, 'Enter'], { timeout: 5000 }); } catch {}
+        s.status = 'ok';
+        delete s.permissionAskedAt;
+        sv(s);
+        notify('\\u2705 Approved.');
+        return;
+      }
+      if (c === 'no' || c === 'n' || c === 'deny' || c === 'reject') {
+        log('Permission denied by user');
+        try { execFileSync('tmux', ['send-keys', '-t', SESSION, 'Escape'], { timeout: 5000 }); } catch {}
+        s.status = 'ok';
+        delete s.permissionAskedAt;
+        sv(s);
+        notify('\\u274C Denied.');
+        return;
+      }
+    }
+    return;
+  }
+
+  if (s.status !== 'failed') return;
   const cmds = await readCommands();
   for (const c of cmds) {
     if (c === 'restart' || c === 'try again') { log('User restart'); notify('\\uD83D\\uDD04 Restarting...'); s.restarts = []; s.status = 'restarting'; sv(s); restart(); return; }
