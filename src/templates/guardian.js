@@ -209,11 +209,11 @@ const PERM_PATTERNS = [
   'Esc to cancel',
   'Allow once',
   'Allow always',
-  'bypass permissions',
-  'shift+tab to cycle',
   'Yes, I trust',
   'Tab to amend',
 ];
+// NOTE: Do NOT add 'bypass permissions' or 'shift+tab to cycle' — those are
+// the Claude Code STATUS BAR (always visible), not permission prompts.
 
 // ─── Health check ───
 function check() {
