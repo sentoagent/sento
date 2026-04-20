@@ -53,6 +53,34 @@ export async function setupWorkspace(config) {
   if (config.channelIds?.length) sentoConfig.monitorChannel = config.channelIds[0];
   fs.writeFileSync(configPath, JSON.stringify(sentoConfig, null, 2));
 
+  // Project-level Claude Code permissions (prevents permission prompts for common tools)
+  const projectClaudeDir = path.join(workspace, ".claude");
+  fs.mkdirSync(projectClaudeDir, { recursive: true });
+  fs.writeFileSync(path.join(projectClaudeDir, "settings.json"), JSON.stringify({
+    permissions: {
+      allow: [
+        "Bash(curl *)",
+        "Bash(crontab *)",
+        "Bash(tmux *)",
+        "Bash(node ~/workspace/*.mjs*)",
+        "Bash(node ~/workspace/*.js*)",
+        "Bash(sento *)",
+        "Bash(clawmem *)",
+        "Bash(whisper *)",
+        "Bash(git *)",
+        "Bash(pip*)",
+        "Bash(npm *)",
+        "Bash(npx *)",
+        "Bash(bun *)",
+        "mcp__plugin_discord_discord__*",
+        "mcp__plugin_telegram_telegram__*",
+        "mcp__plugin_slack_slack__*",
+        "mcp__clawmem__*",
+        "mcp__plugin_context7_context7__*",
+      ],
+    },
+  }, null, 2));
+
   // CLAUDE.md
   fs.writeFileSync(path.join(workspace, "CLAUDE.md"), renderClaudeMd(config));
 
