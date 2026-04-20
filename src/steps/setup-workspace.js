@@ -99,6 +99,40 @@ export async function setupWorkspace(config) {
     },
   }, null, 2));
 
+  // Cron background agent hook (UserPromptSubmit)
+  // Detects [CRON] prefix and instructs agent to use background subagent
+  const cronHookScript = `#!/bin/bash
+# Sento cron hook: detects [CRON] messages and instructs background agent usage
+INPUT=$(cat)
+PROMPT=$(echo "$INPUT" | grep -o '"user_prompt":"[^"]*"' | head -1 | sed 's/"user_prompt":"//;s/"$//')
+
+if echo "$PROMPT" | grep -q '\\[CRON\\]'; then
+  echo '{"continue":true,"suppressOutput":false,"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","systemMessage":"IMPORTANT: This message is from a scheduled cron job. You MUST handle it by spawning a background Agent (using the Agent tool with run_in_background: true) so you can continue responding to Discord messages in parallel. Do NOT process this cron task inline — always delegate to a background agent. The background agent should do the research/check and report back. When it returns, act on the results immediately (post to Discord, execute trades, etc)."}}'
+else
+  echo '{"continue":true,"suppressOutput":true}'
+fi
+`;
+  const cronHookPath = path.join(projectClaudeDir, "cron-hook.sh");
+  fs.writeFileSync(cronHookPath, cronHookScript);
+  fs.chmodSync(cronHookPath, 0o700);
+
+  // Add hook to project settings.json
+  const settingsPath = path.join(projectClaudeDir, "settings.json");
+  const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  settings.hooks = settings.hooks || {};
+  settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit || [{ matcher: "", hooks: [] }];
+  // Add cron hook if not already present
+  const cronHookEntry = { type: "command", command: cronHookPath, timeout: 5 };
+  const existingHooks = settings.hooks.UserPromptSubmit[0].hooks || [];
+  if (!existingHooks.some(h => h.command && h.command.includes("cron-hook"))) {
+    existingHooks.push(cronHookEntry);
+    settings.hooks.UserPromptSubmit[0].hooks = existingHooks;
+  }
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+
+  // Create .cron-queue file location
+  fs.writeFileSync(path.join(workspace, ".cron-queue"), "");
+
   // CLAUDE.md
   fs.writeFileSync(path.join(workspace, "CLAUDE.md"), renderClaudeMd(config));
 

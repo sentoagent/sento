@@ -507,11 +507,46 @@ async function checkForUpdates() {
 
 // ─── Main loop ───
 log('Guardian started');
-checkForUpdates(); // Check on startup
+// ─── Cron Queue Drain ───
+const CRON_QUEUE = HOME + '/workspace/.cron-queue';
+function drainCronQueue() {
+  if (!fs.existsSync(CRON_QUEUE)) return;
+  try {
+    const content = fs.readFileSync(CRON_QUEUE, 'utf-8').trim();
+    if (!content) return;
+    const lines = content.split('\\n').filter(l => l.trim());
+    if (lines.length === 0) return;
+
+    // Check if agent is idle
+    const o = tm(5);
+    if (!o) return;
+    const isIdle = o.includes('\\u276F') && !o.includes('esc to interrupt');
+    if (!isIdle) return;
+
+    // Inject the oldest queued message
+    const msg = lines[0];
+    const remaining = lines.slice(1).join('\\n');
+    try {
+      execFileSync('tmux', ['send-keys', '-t', SESSION, msg, 'Enter'], { timeout: 5000 });
+      log('Drained cron queue: ' + msg.slice(0, 80));
+    } catch {}
+
+    // Update queue file (remove processed message)
+    if (remaining.trim()) {
+      fs.writeFileSync(CRON_QUEUE, remaining + '\\n');
+    } else {
+      fs.unlinkSync(CRON_QUEUE);
+    }
+  } catch {}
+}
+
+// ─── Main loop ───
+log('Guardian started');
+checkForUpdates();
 setInterval(() => {
   loadSentoConfig();
   CHANNEL = detectChannel();
-  check(); handleCommands(); checkPairResponse();
+  check(); handleCommands(); checkPairResponse(); drainCronQueue();
   checkForUpdates();
 }, 30000);
 check();

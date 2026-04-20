@@ -69,6 +69,17 @@ export async function update() {
   // Re-apply channel patches (Discord guild matching + buffer, Telegram buffer)
   await patchChannels({ patchAll: true });
 
+  // Regenerate cron-trigger.sh with smart queue/lockfile
+  try {
+    const { renderCronTrigger } = await import("../templates/cron-trigger.js");
+    const cronPath = path.join(workspace, "cron-trigger.sh");
+    fs.writeFileSync(cronPath, renderCronTrigger());
+    fs.chmodSync(cronPath, 0o700);
+    log.success("Cron trigger updated");
+  } catch (e) {
+    log.warn("Could not update cron trigger: " + e.message);
+  }
+
   // Regenerate Guardian + permissions from the NEWLY INSTALLED package (not the running code)
   try {
     const configPath = path.join(workspace, ".sento-config.json");
