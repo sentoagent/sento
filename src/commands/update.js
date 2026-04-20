@@ -24,8 +24,22 @@ export async function update() {
     process.exit(1);
   }
 
-  // Self-update sentoagent CLI
-  await runWithSpinner("Updating sentoagent CLI", "npm", ["install", "-g", "--prefix", npmGlobal, "sentoagent@latest"], { env });
+  // Self-update sentoagent CLI, then re-exec with new code
+  const skipSelfUpdate = process.argv.includes("--skip-self-update");
+  if (!skipSelfUpdate) {
+    await runWithSpinner("Updating sentoagent CLI", "npm", ["install", "-g", "--prefix", npmGlobal, "sentoagent@latest"], { env });
+
+    // Re-exec with the newly installed code so Guardian/settings use latest templates
+    const newSento = path.join(npmGlobal, "bin/sento");
+    if (fs.existsSync(newSento)) {
+      try {
+        // execFileSync is safe here — no user input, hardcoded path
+        const { execFileSync: xfs } = await import("child_process");
+        xfs(newSento, ["update", "--skip-self-update"], { stdio: "inherit", env, cwd: workspace });
+        return;
+      } catch {}
+    }
+  }
 
   // Update Claude Code
   if (await commandExists("claude")) {
