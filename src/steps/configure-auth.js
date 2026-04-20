@@ -91,6 +91,11 @@ export async function configureAuth(config) {
     appendToFile(bashrc, "CLAWMEM_EMBED_API_KEY", config.geminiKey);
     appendToFile(bashrc, "CLAWMEM_EMBED_MODEL", "gemini-embedding-001");
   }
+  // Always disable remote LLM localhost fallback + enable local model fallback
+  // Prevents ClawMem from spamming localhost:8089 errors on VPS
+  // Ensures memory works even if Gemini key is invalid/expired
+  appendToFile(bashrc, "CLAWMEM_REMOTE_LLM_URL", '""');
+  appendToFile(bashrc, "CLAWMEM_LOCAL_FALLBACK", "true");
 
   const claudeJson = path.join(os.homedir(), ".claude.json");
   let claudeConfig = {};

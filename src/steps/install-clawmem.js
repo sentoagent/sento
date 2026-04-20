@@ -13,6 +13,8 @@ export async function installClawmem(config) {
   };
 
   // Configure embedding source
+  // Even with a Gemini key, ClawMem must work if the key is invalid or quota runs out.
+  // Strategy: set Gemini as primary, but always ensure local fallback works.
   if (config.geminiKey) {
     env.GEMINI_API_KEY = config.geminiKey;
     env.CLAWMEM_EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
@@ -20,12 +22,15 @@ export async function installClawmem(config) {
     env.CLAWMEM_EMBED_MODEL = "gemini-embedding-001";
   }
 
-  // Disable remote LLM/embed localhost fallback (no local servers running)
-  // This prevents ClawMem from trying localhost:8088/8089 and spamming errors
+  // Disable remote LLM localhost fallback (no local LLM server running)
+  // ClawMem tries localhost:8089 for enrichment by default — doesn't exist on VPS
   env.CLAWMEM_REMOTE_LLM_URL = "";
-  env.CLAWMEM_REMOTE_EMBED_URL = config.geminiKey
-    ? "https://generativelanguage.googleapis.com/v1beta/openai"
-    : "";
+  // If no Gemini key, also disable remote embed (prevents localhost:8088 spam)
+  if (!config.geminiKey) {
+    env.CLAWMEM_REMOTE_EMBED_URL = "";
+  }
+  // Always allow local model fallback (works even if Gemini key is bad/expired)
+  env.CLAWMEM_LOCAL_FALLBACK = "true";
 
   const bunBin = path.join(os.homedir(), ".bun/bin");
   if (await commandExists(path.join(bunBin, "clawmem"))) {
