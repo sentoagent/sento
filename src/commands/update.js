@@ -134,6 +134,28 @@ export async function update() {
         "mcp__plugin_context7_context7__*", "mcp__plugin_playwright_playwright__*",
       ],
     };
+    // Add cron background agent hook
+    const cronHookScript = `#!/bin/bash
+INPUT=$(cat)
+PROMPT=$(echo "$INPUT" | grep -o '"user_prompt":"[^"]*"' | head -1 | sed 's/"user_prompt":"//;s/"$//')
+if echo "$PROMPT" | grep -q '\\[CRON\\]'; then
+  echo '{"continue":true,"suppressOutput":false,"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","systemMessage":"IMPORTANT: This message is from a scheduled cron job. You MUST handle it by spawning a background Agent (using the Agent tool with run_in_background: true) so you can continue responding to Discord messages in parallel. Do NOT process this cron task inline."}}'
+else
+  echo '{"continue":true,"suppressOutput":true}'
+fi
+`;
+    const cronHookPath = path.join(projectClaudeDir, "cron-hook.sh");
+    fs.writeFileSync(cronHookPath, cronHookScript);
+    fs.chmodSync(cronHookPath, 0o700);
+
+    existing.hooks = existing.hooks || {};
+    existing.hooks.UserPromptSubmit = existing.hooks.UserPromptSubmit || [{ matcher: "", hooks: [] }];
+    const hooksList = existing.hooks.UserPromptSubmit[0].hooks || [];
+    if (!hooksList.some(h => h.command && h.command.includes("cron-hook"))) {
+      hooksList.push({ type: "command", command: cronHookPath, timeout: 5 });
+      existing.hooks.UserPromptSubmit[0].hooks = hooksList;
+    }
+
     fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
     log.success("Permissions updated");
   } catch (e) {
