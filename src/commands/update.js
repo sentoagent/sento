@@ -55,29 +55,64 @@ export async function update() {
   // Re-apply channel patches (Discord guild matching + buffer, Telegram buffer)
   await patchChannels({ patchAll: true });
 
-  // Regenerate Guardian with latest template
+  // Regenerate Guardian + permissions from the NEWLY INSTALLED package (not the running code)
   try {
     const configPath = path.join(workspace, ".sento-config.json");
     if (fs.existsSync(configPath)) {
       const sentoConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-      // Read language from CLAUDE.md
       let language = "English";
       const claudeMd = fs.readFileSync(path.join(workspace, "CLAUDE.md"), "utf-8");
       const langMatch = claudeMd.match(/- Language: (.+)/);
       if (langMatch) language = langMatch[1].trim();
 
-      const { renderGuardian } = await import("../templates/guardian.js");
+      // Import from the NEWLY INSTALLED package, not the currently-running code
+      const newPkg = path.join(npmGlobal, "lib/node_modules/sentoagent/src/templates/guardian.js");
+      const guardianMod = fs.existsSync(newPkg.replace(".js", ".js"))
+        ? await import("file://" + newPkg)
+        : await import("../templates/guardian.js");
+
       const guardianConfig = {
         agentName: sentoConfig.agentName || "agent",
         channelType: sentoConfig.channelType || "discord",
         language,
       };
-      fs.writeFileSync(path.join(workspace, "guardian.mjs"), renderGuardian(guardianConfig));
+      fs.writeFileSync(path.join(workspace, "guardian.mjs"), guardianMod.renderGuardian(guardianConfig));
       fs.chmodSync(path.join(workspace, "guardian.mjs"), 0o700);
       log.success("Guardian updated");
     }
   } catch (e) {
     log.warn("Could not update Guardian: " + e.message);
+  }
+
+  // Generate/update permissions allowlist (settings.json)
+  try {
+    const projectClaudeDir = path.join(workspace, ".claude");
+    fs.mkdirSync(projectClaudeDir, { recursive: true });
+    const settingsPath = path.join(projectClaudeDir, "settings.json");
+    // Merge with existing settings if present
+    let existing = {};
+    if (fs.existsSync(settingsPath)) {
+      try { existing = JSON.parse(fs.readFileSync(settingsPath, "utf-8")); } catch {}
+    }
+    existing.permissions = {
+      allow: [
+        "Bash(curl *)", "Bash(crontab *)", "Bash(tmux *)", "Bash(node *)",
+        "Bash(sento *)", "Bash(clawmem *)", "Bash(whisper *)", "Bash(ffmpeg *)",
+        "Bash(git *)", "Bash(pip*)", "Bash(npm *)", "Bash(npx *)", "Bash(bun *)",
+        "Bash(python3 *)", "Bash(python *)", "Bash(pkill *)", "Bash(kill *)",
+        "Bash(pgrep *)", "Bash(chmod *)", "Bash(chown *)", "Bash(mkdir *)",
+        "Bash(cat *)", "Bash(echo *)", "Bash(wget *)", "Bash(source *)",
+        "Bash(playwright *)", "Bash(npx playwright *)",
+        "Edit(*)", "Write(*)", "Read(*)",
+        "mcp__plugin_discord_discord__*", "mcp__plugin_telegram_telegram__*",
+        "mcp__plugin_slack_slack__*", "mcp__clawmem__*",
+        "mcp__plugin_context7_context7__*", "mcp__plugin_playwright_playwright__*",
+      ],
+    };
+    fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
+    log.success("Permissions updated");
+  } catch (e) {
+    log.warn("Could not update permissions: " + e.message);
   }
 
   // Update ClawMem
