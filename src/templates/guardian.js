@@ -181,15 +181,20 @@ function restart() {
   log('Restarting...');
   const o = tm(50);
   if (o) try { fs.writeFileSync(HOME + '/workspace/memory/guardian-restart-' + Date.now() + '.log', o); } catch {}
+  // Force kill session + any lingering claude processes
   try { execFileSync('tmux', ['kill-session', '-t', SESSION], { timeout: 5000 }); } catch {}
+  try { execFileSync('pkill', ['-u', process.getuid().toString(), '-f', 'claude.*--dangerously'], { timeout: 5000 }); } catch {}
   setTimeout(() => {
+    // Verify session is dead before creating new one
     try { execFileSync('tmux', ['kill-session', '-t', SESSION], { timeout: 5000 }); } catch {}
     setTimeout(() => {
+      // Double-check: if session still exists, don't create duplicate
+      if (alive()) { log('Session still alive after kill attempts. Skipping create.'); return; }
       try { execFileSync('tmux', ['new-session', '-d', '-s', SESSION, START], { timeout: 10000 }); log('Restarted'); }
       catch (e) { log('Failed: ' + e.message); }
       setTimeout(() => { checkAndReapplyPatches(); }, 10000);
     }, 3000);
-  }, 2000);
+  }, 3000);
 }
 
 // ─── Permission prompt detection + forwarding ───
