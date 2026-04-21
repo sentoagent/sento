@@ -164,11 +164,11 @@ fi
         .filter((l) => !l.includes("start-agent") && !l.includes("watchdog") && !l.includes("guardian") && !l.includes("cron-trigger"))
         .filter((l) => l.trim())
         .join("\n");
+      // Infrastructure crons only — agent tasks use /loop (set up by agent on session start)
       const sentoEntries = [
         `@reboot tmux new-session -d -s ${config.agentName} ~/workspace/start-agent.sh`,
-        `@reboot node ~/workspace/guardian.mjs &`,
+        `@reboot cd ~/workspace && node guardian.mjs &`,
         `*/5 * * * * ~/workspace/watchdog.sh`,
-        `55 3 * * * ~/workspace/cron-trigger.sh ${config.agentName} "End of day. Write your daily notes to ~/workspace/memory/$(date +\\%Y-\\%m-\\%d).md. Include: key conversations, decisions made, tasks completed, anything worth remembering. Keep it concise. Then run: clawmem update"`,
       ].join("\n");
       const newCron = filtered ? `${filtered}\n${sentoEntries}\n` : `${sentoEntries}\n`;
       await run("bash", ["-c", `echo '${newCron.replace(/'/g, "'\\''")}' | crontab -`]);

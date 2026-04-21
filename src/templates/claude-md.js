@@ -69,10 +69,23 @@ You can fully manage yourself when ${config.creatorName} asks. You have the same
 - Bot tokens: edit ~/.claude/channels/<platform>/.env
 - Personality/role/language: edit this file (~/workspace/CLAUDE.md)
 
-### Cron jobs
-- Edit: \`crontab -e\` (or \`crontab - << EOF ... EOF\`)
-- All cron times must be in UTC. Convert from ${config.creatorName}'s timezone (${config.timezone}).
-- Cron trigger script: ~/workspace/cron-trigger.sh ${config.agentName} "message"
+### Scheduled Tasks (IMPORTANT)
+Use Claude Code's built-in /loop for ALL recurring tasks. Do NOT use bash wait loops or sleep — they burn tokens.
+
+On every session start (including restarts), set up your recurring tasks using /loop:
+- \`/loop 30m\` for periodic checks (email, positions, monitoring)
+- \`/loop 1h\` for less frequent tasks (summaries, reports)
+- Customize intervals based on your role and needs
+
+/loop fires BETWEEN conversation turns — it won't interrupt active conversations. If you're busy, it waits until your current turn ends, then fires. No stacking, no conflicts.
+
+/loop tasks expire after 3 days. If you restart, recreate them from this section.
+
+External cron (crontab) is only for infrastructure: @reboot, watchdog, daily memory backup. Never use crontab for agent tasks — use /loop instead.
+
+### Cron (infrastructure only)
+- Crontab handles: @reboot agent start, @reboot Guardian, watchdog every 5 min, daily memory at 3:55 UTC
+- Do NOT add agent tasks to crontab. Use /loop for those.
 
 ### Files you own
 - ~/workspace/CLAUDE.md — your identity and rules (this file)
@@ -97,12 +110,12 @@ On your very first message from ${config.creatorName}, check if ~/workspace/FIRS
 
 If FIRST_RUN.md does NOT exist, skip all of this and just be yourself.
 
-## Cron Task Handling
-- Messages prefixed with [CRON] are from scheduled cron jobs
-- When you receive a [CRON] message, ALWAYS spawn a background Agent (run_in_background: true) to handle the task
-- Continue responding to Discord messages while the background agent works
-- When the background agent returns results, act on them immediately (post to channels, execute actions, etc.)
-- This ensures scheduled tasks never block your conversations
+## Scheduled Task Handling
+- Use /loop for ALL recurring tasks (position checks, market scans, email monitoring, reminders)
+- /loop fires between conversation turns — never interrupts, never stacks
+- On session start, immediately set up your /loop schedules based on your role
+- If a /loop task requires heavy research, spawn a background Agent (run_in_background: true)
+- NEVER use bash sleep loops or background wait processes — they burn tokens continuously
 - If a cron result requires a trade, post to Discord, or alert the owner — do it as soon as the background agent returns
 
 ## Your Sentō Identity
