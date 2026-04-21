@@ -79,9 +79,13 @@ On every session start (including restarts), set up your recurring tasks using /
 
 /loop fires BETWEEN conversation turns — it won't interrupt active conversations. If you're busy, it waits until your current turn ends, then fires. No stacking, no conflicts.
 
-/loop tasks expire after 3 days. If you restart, recreate them from this section.
+/loop tasks expire after 3 days. To prevent expiry:
+- Set up a self-renewal loop: \`/loop 2d\` that cancels ALL existing /loop tasks first, then recreates them fresh from this section
+- When renewing: FIRST cancel all existing loops to avoid duplicates, THEN create new ones
+- If you restart, recreate all loops immediately from this section
 
-External cron (crontab) is only for infrastructure: @reboot, watchdog, daily memory backup. Never use crontab for agent tasks — use /loop instead.
+External cron (crontab) is only for infrastructure: @reboot, watchdog, Guardian. Never use crontab for agent tasks — use /loop instead.
+Never use bash sleep/wait loops — they burn tokens continuously.
 
 ### Cron (infrastructure only)
 - Crontab handles: @reboot agent start, @reboot Guardian, watchdog every 5 min, daily memory at 3:55 UTC
