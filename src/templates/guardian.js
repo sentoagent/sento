@@ -127,7 +127,10 @@ function alive() { try { return execFileSync('tmux', ['ls'], { encoding: 'utf-8'
 function sendPostRestartNudge() {
   const msg = 'Session just started. Re-establish your /loop scheduled tasks from the Scheduled Tasks section of your CLAUDE.md now. Cancel any existing duplicate loops first. If you have no Scheduled Tasks section, reply briefly and do nothing.';
   try {
-    execFileSync('tmux', ['send-keys', '-t', SESSION, msg, 'Enter'], { timeout: 5000 });
+    // Claude Code TUI consumes the first Enter after a typed line as a newline
+    // inside its multiline input; a second Enter is needed to submit. Without
+    // the second Enter the prompt sits in the buffer and stacks on next nudge.
+    execFileSync('tmux', ['send-keys', '-t', SESSION, msg, 'Enter', 'Enter'], { timeout: 5000 });
     log('Sent post-restart /loop nudge');
   } catch (e) { log('Nudge send failed: ' + e.message); }
 }
