@@ -120,6 +120,18 @@ function sv(s) { try { fs.writeFileSync(STATE, JSON.stringify(s)); } catch {} }
 function tm(n = 30) { try { return execFileSync('tmux', ['capture-pane', '-t', SESSION, '-p', '-S', '-' + n], { encoding: 'utf-8', timeout: 5000 }); } catch { return null; } }
 function alive() { try { return execFileSync('tmux', ['ls'], { encoding: 'utf-8', timeout: 5000 }).includes(SESSION); } catch { return false; } }
 
+// ─── Post-restart /loop nudge ───
+// /loop scheduled tasks die when the Claude session restarts. CLAUDE.md is passive
+// context so the agent won't re-create them on its own. This function injects a
+// single prompt once, after the session confirms it's listening for channel messages.
+function sendPostRestartNudge() {
+  const msg = 'Session just started. Re-establish your /loop scheduled tasks from the Scheduled Tasks section of your CLAUDE.md now. Cancel any existing duplicate loops first. If you have no Scheduled Tasks section, reply briefly and do nothing.';
+  try {
+    execFileSync('tmux', ['send-keys', '-t', SESSION, msg, 'Enter'], { timeout: 5000 });
+    log('Sent post-restart /loop nudge');
+  } catch (e) { log('Nudge send failed: ' + e.message); }
+}
+
 // ─── Discord patch management ───
 function checkAndReapplyPatches() {
   try {
@@ -190,7 +202,11 @@ function restart() {
     setTimeout(() => {
       // Double-check: if session still exists, don't create duplicate
       if (alive()) { log('Session still alive after kill attempts. Skipping create.'); return; }
-      try { execFileSync('tmux', ['new-session', '-d', '-s', SESSION, START], { timeout: 10000 }); log('Restarted'); }
+      try {
+        execFileSync('tmux', ['new-session', '-d', '-s', SESSION, START], { timeout: 10000 });
+        log('Restarted');
+        const st = ld(); st.needsNudge = Date.now(); sv(st);
+      }
       catch (e) { log('Failed: ' + e.message); }
       setTimeout(() => { checkAndReapplyPatches(); }, 10000);
     }, 3000);
@@ -223,6 +239,22 @@ function check() {
   if (!alive()) { log('Dead.'); notify('\\uD83D\\uDD04 **' + SESSION + '** went down. Restarting...'); restart(); s.restarts.push(now); s.status = 'restarting'; s.failCount = 0; sv(s); return; }
 
   const o = tm(); if (!o) { s.status = 'ok'; s.failCount = 0; sv(s); return; }
+
+  // Post-restart /loop nudge: fire once when agent confirms it's listening.
+  // 15s min delay gives Claude Code time to finish init; 3min hard timeout
+  // in case the agent never reaches the listening state (skip the nudge).
+  if (s.needsNudge) {
+    const elapsed = now - s.needsNudge;
+    if (elapsed > 15000 && elapsed < 180000 && o.includes('Listening for channel messages')) {
+      sendPostRestartNudge();
+      delete s.needsNudge;
+      sv(s);
+    } else if (elapsed >= 180000) {
+      log('Post-restart nudge timed out waiting for listening state');
+      delete s.needsNudge;
+      sv(s);
+    }
+  }
 
   // Check for permission prompts — AUTO-ACCEPT immediately
   // Agents run with --dangerously-skip-permissions (user consented to full autonomy)
@@ -507,8 +539,12 @@ async function checkForUpdates() {
 
 // ─── Main loop ───
 log('Guardian started');
-// ─── Main loop ───
-log('Guardian started');
+
+// On Guardian startup, nudge agent once to ensure /loop tasks are active.
+// Flag persists in state file so auto-update restarts don't re-nudge, but /tmp
+// wipes on reboot so boot-time agents get their loops set up after system reboot.
+{ const st = ld(); if (!st.initialNudgeSent) { st.needsNudge = Date.now(); st.initialNudgeSent = true; sv(st); log('Initial /loop nudge scheduled'); } }
+
 checkForUpdates();
 setInterval(() => {
   loadSentoConfig();
