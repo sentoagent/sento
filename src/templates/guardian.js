@@ -353,7 +353,7 @@ const commsServer = http.createServer((req, res) => {
         RATE_LIMIT.set(sender, rl);
         if (rl.count > 10) { res.writeHead(429); res.end('rate limited'); return; }
         const msg = '[Message from agent ' + sender + ']: ' + data.message + ' (To reply, run: ~/workspace/send-message.sh ' + sender + ' \\"your reply\\")';
-        try { execFileSync('tmux', ['send-keys', '-t', SESSION, msg, 'Enter'], { timeout: 5000 }); } catch {}
+        try { execFileSync('tmux', ['send-keys', '-t', SESSION, msg, 'Enter', 'Enter'], { timeout: 5000 }); } catch {}
         log('Message from ' + sender + ': ' + data.message.slice(0, 100));
         res.writeHead(200); res.end('ok');
       } catch { res.writeHead(400); res.end('bad request'); }

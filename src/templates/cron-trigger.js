@@ -11,6 +11,6 @@ if [ -z "$MESSAGE" ]; then
   exit 1
 fi
 
-tmux send-keys -t "$SESSION" "$MESSAGE" Enter
+tmux send-keys -t "$SESSION" "$MESSAGE" Enter Enter
 `;
 }
