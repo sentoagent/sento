@@ -240,17 +240,21 @@ function check() {
 
   const o = tm(); if (!o) { s.status = 'ok'; s.failCount = 0; sv(s); return; }
 
-  // Post-restart /loop nudge: fire once when agent confirms it's listening.
+  // Post-restart /loop nudge: fire once when agent is ready to accept input.
+  // "Ready" = either the fresh-start "Listening for channel messages" banner
+  // is visible, OR the agent is established and idle (no "esc to interrupt").
   // 15s min delay gives Claude Code time to finish init; 3min hard timeout
-  // in case the agent never reaches the listening state (skip the nudge).
+  // in case the agent never reaches a ready state (skip the nudge).
   if (s.needsNudge) {
     const elapsed = now - s.needsNudge;
-    if (elapsed > 15000 && elapsed < 180000 && o.includes('Listening for channel messages')) {
+    const isFreshAndListening = o.includes('Listening for channel messages');
+    const isEstablishedAndIdle = !o.includes('esc to interrupt') && !PERM_PATTERNS.some(p => o.includes(p));
+    if (elapsed > 15000 && elapsed < 180000 && (isFreshAndListening || isEstablishedAndIdle)) {
       sendPostRestartNudge();
       delete s.needsNudge;
       sv(s);
     } else if (elapsed >= 180000) {
-      log('Post-restart nudge timed out waiting for listening state');
+      log('Post-restart nudge timed out waiting for ready state');
       delete s.needsNudge;
       sv(s);
     }
