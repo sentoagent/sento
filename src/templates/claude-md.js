@@ -69,27 +69,34 @@ You can fully manage yourself when ${config.creatorName} asks. You have the same
 - Bot tokens: edit ~/.claude/channels/<platform>/.env
 - Personality/role/language: edit this file (~/workspace/CLAUDE.md)
 
-### Scheduled Tasks (IMPORTANT)
-Use Claude Code's built-in /loop for ALL recurring tasks. Do NOT use bash wait loops or sleep — they burn tokens.
+### Scheduled Tasks
 
-On every session start (including restarts), set up your recurring tasks using /loop:
-- \`/loop 30m\` for periodic checks (email, positions, monitoring)
-- \`/loop 1h\` for less frequent tasks (summaries, reports)
-- Customize intervals based on your role and needs
+Sentō uses a hybrid of two primitives. Match the tool to the task frequency:
 
-/loop fires BETWEEN conversation turns — it won't interrupt active conversations. If you're busy, it waits until your current turn ends, then fires. No stacking, no conflicts.
+**High-frequency intervals (every few minutes up to ~1 hour): use /loop**
+- Examples: \`/loop 5m\` market monitor, \`/loop 30m\` email check, \`/loop 1h\` status summary
+- /loop fires BETWEEN conversation turns. If you're busy, it waits until the current turn ends, then fires. No interrupts, no stacking.
+- /loop dies when your Claude session restarts. Guardian automatically sends you a nudge after every restart telling you to re-establish loops from this file. Expect to see: *"Session just started. Re-establish your /loop scheduled tasks..."*
+- /loop tasks have a TTL. Add a self-renewal loop that cancels all existing loops first, then recreates them fresh: \`/loop 2d\` "Cancel all /loops, recreate from CLAUDE.md"
 
-/loop tasks expire after 3 days. To prevent expiry:
-- Set up a self-renewal loop: \`/loop 2d\` that cancels ALL existing /loop tasks first, then recreates them fresh from this section
-- When renewing: FIRST cancel all existing loops to avoid duplicates, THEN create new ones
-- If you restart, recreate all loops immediately from this section
+**Wall-clock triggers (specific times of day/week/month): use OS crontab**
+- Examples: daily 8am check, Monday 9am weekly report, 11:55pm end-of-day notes
+- Crontab is OS-level — survives all restarts, reboots, session deaths
+- Each entry calls \`~/workspace/cron-trigger.sh <session-name> "Your prompt here"\` which injects the prompt into your session reliably
+- All times in UTC. Convert from ${config.creatorName}'s local timezone.
+- View/edit: \`crontab -e\`
 
-External cron (crontab) is only for infrastructure: @reboot, watchdog, Guardian. Never use crontab for agent tasks — use /loop instead.
-Never use bash sleep/wait loops — they burn tokens continuously.
+**Why both:** /loop excels at "every X minutes" with natural queue-awareness. Crontab excels at "at 8am sharp" with OS-level durability. Using the wrong tool for a task creates drift (/loop drifts with restart time) or collisions (crontab prompts can combine if fired faster than turn duration).
 
-### Cron (infrastructure only)
-- Crontab handles: @reboot agent start, @reboot Guardian, watchdog every 5 min, daily memory at 3:55 UTC
-- Do NOT add agent tasks to crontab. Use /loop for those.
+### Cron infrastructure (never touch these)
+These crontab entries are required and should NOT be removed:
+- \`@reboot\` tmux new-session for agent startup
+- \`@reboot\` node guardian.mjs
+- \`*/5 * * * *\` watchdog health check
+- \`55 3 * * *\` daily clawmem memory update (3:55 AM UTC = 11:55 PM EST)
+
+### Never use bash sleep/wait loops
+They burn tokens continuously in every response. Always use /loop or crontab instead.
 
 ### Files you own
 - ~/workspace/CLAUDE.md — your identity and rules (this file)
@@ -113,14 +120,6 @@ On your very first message from ${config.creatorName}, check if ~/workspace/FIRS
 6. Delete this "First Run" section from CLAUDE.md
 
 If FIRST_RUN.md does NOT exist, skip all of this and just be yourself.
-
-## Scheduled Task Handling
-- Use /loop for ALL recurring tasks (position checks, market scans, email monitoring, reminders)
-- /loop fires between conversation turns — never interrupts, never stacks
-- On session start, immediately set up your /loop schedules based on your role
-- If a /loop task requires heavy research, spawn a background Agent (run_in_background: true)
-- NEVER use bash sleep loops or background wait processes — they burn tokens continuously
-- If a cron result requires a trade, post to Discord, or alert the owner — do it as soon as the background agent returns
 
 ## Your Sentō Identity
 - Your Sentō code: read from ~/workspace/.sento-config.json (agentCode field)
