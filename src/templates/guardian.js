@@ -263,6 +263,20 @@ function check() {
     }
   }
 
+  // Stuck prompt safety net: if agent is idle AND input area has unsubmitted text,
+  // flush with Enter Enter. Covers cases where cron-trigger.sh fires while the
+  // agent is rate-limited or mid-state-transition — the text is typed but Enter
+  // keystrokes get consumed as newlines instead of submitting. When the agent
+  // becomes idle again, Guardian detects the pending text and flushes it.
+  // Safe when empty (regex requires non-whitespace after ❯).
+  // Safe when busy ('esc to interrupt' guard prevents mid-turn interruption).
+  const hasStuckInput = /^❯ \\S/m.test(o);
+  const isBusy = o.includes('esc to interrupt');
+  if (hasStuckInput && !isBusy) {
+    log('Stuck prompt detected — flushing with Enter Enter');
+    try { execFileSync('tmux', ['send-keys', '-t', SESSION, 'Enter', 'Enter'], { timeout: 5000 }); } catch {}
+  }
+
   // Check for permission prompts — AUTO-ACCEPT immediately
   // Agents run with --dangerously-skip-permissions (user consented to full autonomy)
   // Guardian auto-accepts any prompt Claude Code shows, no Discord forwarding needed
