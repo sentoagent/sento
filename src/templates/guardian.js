@@ -270,7 +270,9 @@ function check() {
   // becomes idle again, Guardian detects the pending text and flushes it.
   // Safe when empty (regex requires non-whitespace after ❯).
   // Safe when busy ('esc to interrupt' guard prevents mid-turn interruption).
-  const hasStuckInput = /^❯ \\S/m.test(o);
+  // \\s+ matches both ASCII space and NBSP (U+00A0) — Claude Code's TUI uses
+  // NBSP after ❯ to prevent line wrap. Matching only literal space fails silently.
+  const hasStuckInput = /^❯\\s+\\S/m.test(o);
   const isBusy = o.includes('esc to interrupt');
   if (hasStuckInput && !isBusy) {
     log('Stuck prompt detected — flushing with Enter Enter');
