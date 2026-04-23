@@ -268,11 +268,18 @@ function check() {
   // agent is rate-limited or mid-state-transition — the text is typed but Enter
   // keystrokes get consumed as newlines instead of submitting. When the agent
   // becomes idle again, Guardian detects the pending text and flushes it.
-  // Safe when empty (regex requires non-whitespace after ❯).
-  // Safe when busy ('esc to interrupt' guard prevents mid-turn interruption).
+  //
+  // IMPORTANT: scan only the last ~12 lines. The full capture (30 lines) includes
+  // scrollback history which may contain old prompts like "❯ something" that look
+  // identical to stuck input. Those scrollback lines would cause the detector to
+  // fire in an infinite loop against the empty current prompt. The active input
+  // area is always near the bottom of the pane, so limiting to the tail avoids
+  // false positives from history.
+  //
   // \\s+ matches both ASCII space and NBSP (U+00A0) — Claude Code's TUI uses
   // NBSP after ❯ to prevent line wrap. Matching only literal space fails silently.
-  const hasStuckInput = /^❯\\s+\\S/m.test(o);
+  const tail = o.split('\\n').slice(-12).join('\\n');
+  const hasStuckInput = /^❯\\s+\\S/m.test(tail);
   const isBusy = o.includes('esc to interrupt');
   if (hasStuckInput && !isBusy) {
     log('Stuck prompt detected — flushing with Enter Enter');
