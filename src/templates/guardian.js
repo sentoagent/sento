@@ -276,10 +276,12 @@ function check() {
   // area is always near the bottom of the pane, so limiting to the tail avoids
   // false positives from history.
   //
-  // \\s+ matches both ASCII space and NBSP (U+00A0) — Claude Code's TUI uses
-  // NBSP after ❯ to prevent line wrap. Matching only literal space fails silently.
+  // Character class [ \\u00A0\\t] = ASCII space, NBSP, or tab. Do NOT use \\s —
+  // \\s includes \\n which lets the regex span lines, matching an empty prompt
+  // line (❯ + NBSP + newline) plus the next line's separator glyph (─) as a
+  // false positive. Explicit class keeps the match on a single line.
   const tail = o.split('\\n').slice(-12).join('\\n');
-  const hasStuckInput = /^❯\\s+\\S/m.test(tail);
+  const hasStuckInput = /^❯[ \\u00A0\\t]+\\S/m.test(tail);
   const isBusy = o.includes('esc to interrupt');
   if (hasStuckInput && !isBusy) {
     log('Stuck prompt detected — flushing with Enter Enter');
