@@ -269,18 +269,19 @@ function check() {
   // keystrokes get consumed as newlines instead of submitting. When the agent
   // becomes idle again, Guardian detects the pending text and flushes it.
   //
-  // IMPORTANT: scan only the last ~12 lines. The full capture (30 lines) includes
+  // IMPORTANT: scan only the last ~25 lines. The full capture (30 lines) includes
   // scrollback history which may contain old prompts like "❯ something" that look
-  // identical to stuck input. Those scrollback lines would cause the detector to
-  // fire in an infinite loop against the empty current prompt. The active input
-  // area is always near the bottom of the pane, so limiting to the tail avoids
-  // false positives from history.
+  // identical to stuck input — those would cause false-positive loops. But a long
+  // nudge prompt can wrap to 3-4 lines + 2 blanks + separator + status bar + a
+  // few trailing blanks, pushing the ❯ line ~14 lines up from the bottom. 25 is
+  // the pragmatic middle: wide enough to catch wrapped prompts, narrow enough to
+  // avoid most scrollback false positives.
   //
   // Character class [ \\u00A0\\t] = ASCII space, NBSP, or tab. Do NOT use \\s —
   // \\s includes \\n which lets the regex span lines, matching an empty prompt
   // line (❯ + NBSP + newline) plus the next line's separator glyph (─) as a
   // false positive. Explicit class keeps the match on a single line.
-  const tail = o.split('\\n').slice(-12).join('\\n');
+  const tail = o.split('\\n').slice(-25).join('\\n');
   const hasStuckInput = /^❯[ \\u00A0\\t]+\\S/m.test(tail);
   const isBusy = o.includes('esc to interrupt');
   if (hasStuckInput && !isBusy) {
