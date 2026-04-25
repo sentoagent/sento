@@ -579,12 +579,15 @@ log('Guardian started');
 { const st = ld(); if (!st.initialNudgeSent) { st.needsNudge = Date.now(); st.initialNudgeSent = true; sv(st); log('Initial /loop nudge scheduled'); } }
 
 checkForUpdates();
+// Check every 15s (was 30s). Faster recovery on stuck prompts and dead sessions
+// at marginal CPU cost. tm() and ld() are cheap (~5ms each) so doubling
+// frequency adds negligible load.
 setInterval(() => {
   loadSentoConfig();
   CHANNEL = detectChannel();
   check(); handleCommands(); checkPairResponse();
   checkForUpdates();
-}, 30000);
+}, 15000);
 check();
 `;
 }
