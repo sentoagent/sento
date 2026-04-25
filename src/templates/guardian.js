@@ -131,10 +131,13 @@ function alive() { try { return execFileSync('tmux', ['ls'], { encoding: 'utf-8'
 // >2 min newer than the agent's last 'esc to interrupt' AND the agent has been
 // idle for >2 min, the plugin has stalled. Restart fixes it.
 
-let lastDiscordUserTs = 0;
-let lastBusyAt = 0;
+// Initialize to startup time so first stall check has a sane baseline.
+// Initializing to 0 caused "idle 56 years" false-positive at startup because
+// now() - 0 always exceeds STALL_THRESHOLD.
+let lastDiscordUserTs = Date.now();
+let lastBusyAt = Date.now();
 let lastStallCheck = 0;
-let lastStallRestart = 0;
+let lastStallRestart = Date.now();
 
 async function checkDiscordStall() {
   if (CHANNEL.type !== 'discord' || !CHANNEL.token) return;
@@ -183,7 +186,10 @@ async function checkDiscordStall() {
   const STALL_THRESHOLD = 120000; // 2 minutes
   const RESTART_COOLDOWN = 600000; // 10 minutes between auto-restarts
 
-  if (lastDiscordUserTs > lastBusyAt + STALL_THRESHOLD && now - lastBusyAt > STALL_THRESHOLD) {
+  // Require: msg newer than last-busy + 2min, agent idle > 2min,
+  // AND msg itself is at least 2min old (so plugin has had a fair shot at delivering).
+  const msgAge = now - lastDiscordUserTs;
+  if (lastDiscordUserTs > lastBusyAt + STALL_THRESHOLD && now - lastBusyAt > STALL_THRESHOLD && msgAge > STALL_THRESHOLD) {
     if (now - lastStallRestart < RESTART_COOLDOWN) {
       log('Discord stall detected but auto-restarted recently, skipping');
       return;
