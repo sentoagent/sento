@@ -220,6 +220,85 @@ function sendPostRestartNudge() {
   } catch (e) { log('Nudge send failed: ' + e.message); }
 }
 
+// ─── Post-restart message recovery ───
+// When a session restarts (especially due to Discord plugin stall), messages
+// that arrived during the stall + restart window are lost — Discord's gateway
+// doesn't replay history on plugin reconnect. To close this gap, after the
+// session is back up we fetch recent user-authored messages from monitored
+// channels and inject them as a catch-up prompt. The agent reads them, decides
+// what to respond to, and replies in the appropriate channels.
+async function recoverMissedMessages() {
+  if (CHANNEL.type !== 'discord' || !CHANNEL.token) return;
+
+  let channelIds = [];
+  try {
+    const accessPath = HOME + '/.claude/channels/discord/access.json';
+    const access = JSON.parse(fs.readFileSync(accessPath, 'utf-8'));
+    channelIds = Object.keys(access.groups || {});
+  } catch {}
+  if (channelIds.length === 0) return;
+
+  // Look back 5 minutes — covers stall detection (2 min) + restart (~30s) + setup (~60s)
+  const cutoff = Date.now() - 5 * 60 * 1000;
+  const missed = [];
+
+  for (const cid of channelIds) {
+    try {
+      const r = await fetch('https://discord.com/api/v10/channels/' + cid + '/messages?limit=10', {
+        headers: { Authorization: 'Bot ' + CHANNEL.token }
+      });
+      if (!r.ok) continue;
+      const msgs = await r.json();
+      if (!Array.isArray(msgs)) continue;
+      const recent = msgs.filter(m =>
+        !m.author.bot &&
+        new Date(m.timestamp).getTime() > cutoff &&
+        m.content &&
+        m.content.length > 0
+      );
+      for (const m of recent) {
+        missed.push({
+          channel: cid,
+          author: m.author.username,
+          ts: m.timestamp,
+          content: m.content
+        });
+      }
+    } catch {}
+  }
+
+  if (missed.length === 0) {
+    log('Post-restart recovery: no missed messages found');
+    return;
+  }
+
+  // Sort by timestamp ascending (oldest first)
+  missed.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+
+  // Build catch-up prompt
+  const lines = missed.map(m => {
+    const time = m.ts.slice(11, 16);
+    return '[' + time + ' UTC] (channel ' + m.channel + ') ' + m.author + ': ' + m.content;
+  });
+  const prompt = 'Catch-up: while you were restarting, ' + missed.length + ' message(s) arrived from users that the Discord plugin did not deliver. Here they are in order:\\n\\n' + lines.join('\\n\\n') + '\\n\\nPlease respond to each in the appropriate channel. If a message no longer needs a response (e.g. user has moved on), skip it. Stay in character.';
+
+  try {
+    // Use long-prompt handling: text + 3 separated Enters with delays
+    const lineCount = (prompt.match(/\\n/g) || []).length;
+    if (lineCount > 5) {
+      execFileSync('tmux', ['send-keys', '-t', SESSION, prompt], { timeout: 5000 });
+      setTimeout(() => { try { execFileSync('tmux', ['send-keys', '-t', SESSION, 'Enter'], { timeout: 5000 }); } catch {} }, 500);
+      setTimeout(() => { try { execFileSync('tmux', ['send-keys', '-t', SESSION, 'Enter'], { timeout: 5000 }); } catch {} }, 1000);
+      setTimeout(() => { try { execFileSync('tmux', ['send-keys', '-t', SESSION, 'Enter'], { timeout: 5000 }); } catch {} }, 1500);
+    } else {
+      execFileSync('tmux', ['send-keys', '-t', SESSION, prompt, 'Enter', 'Enter'], { timeout: 5000 });
+    }
+    log('Recovered ' + missed.length + ' missed Discord message(s) post-restart');
+  } catch (e) {
+    log('Recovery injection failed: ' + e.message);
+  }
+}
+
 // ─── Discord patch management ───
 function checkAndReapplyPatches() {
   try {
@@ -353,10 +432,32 @@ function check() {
     if (elapsed > 15000 && elapsed < 180000 && (isFreshAndListening || isEstablishedAndIdle)) {
       sendPostRestartNudge();
       delete s.needsNudge;
+      // Schedule message recovery for ~75s later (after agent finishes /loop setup)
+      s.needsRecover = Date.now();
       sv(s);
     } else if (elapsed >= 180000) {
       log('Post-restart nudge timed out waiting for ready state');
       delete s.needsNudge;
+      sv(s);
+    }
+  }
+
+  // Post-restart message recovery: ~75s after the nudge fired, agent should
+  // have finished setting up /loops and be idle. Fetch recent user messages
+  // from monitored channels and inject as catch-up prompt to close the
+  // "messages lost during stall+restart" gap.
+  if (s.needsRecover) {
+    const elapsedSinceNudge = now - s.needsRecover;
+    const cap2 = tm();
+    const tail2 = cap2 ? cap2.split('\\n').slice(-25).join('\\n') : '';
+    const isIdle2 = tail2 && !tail2.includes('esc to interrupt');
+    if (elapsedSinceNudge > 75000 && elapsedSinceNudge < 300000 && isIdle2) {
+      recoverMissedMessages();
+      delete s.needsRecover;
+      sv(s);
+    } else if (elapsedSinceNudge >= 300000) {
+      log('Post-restart recovery skipped: agent never idle within 5 min');
+      delete s.needsRecover;
       sv(s);
     }
   }
