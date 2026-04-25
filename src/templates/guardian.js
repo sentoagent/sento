@@ -244,6 +244,19 @@ function checkAndReapplyPatches() {
         log('Warning: message buffer patch missing. Run sento update.');
       }
 
+      // Message-batching patch: combine multiple Discord messages from the same
+      // user/channel within the buffer window into ONE notification, instead of
+      // sending each as a separate Claude turn. The plugin's original behavior
+      // delayed delivery but still dispatched each message individually, which
+      // (a) costs N times the tokens for N messages, (b) fragments conversation,
+      // and (c) gives N opportunities for MCP transport stalls.
+      const batchTarget = "      for (const m of msgs) {\\n        await handleInbound(m).catch(e =>\\n          process.stderr.write(\`discord: handleInbound failed: \${e}\\\\n\`)\\n        )\\n      }";
+      const batchReplace = "      // SENTO PATCH: batch same-user/channel text messages into one notification\\n      if (msgs.length > 1) {\\n        const sameAuthor = msgs.every(m => m.author.id === msgs[0].author.id);\\n        const sameChannel = msgs.every(m => m.channelId === msgs[0].channelId);\\n        const noPermReplies = !msgs.some(m => PERMISSION_REPLY_RE.test(m.content));\\n        if (sameAuthor && sameChannel && noPermReplies) {\\n          try {\\n            const gateResults = await Promise.all(msgs.map(m => gate(m)));\\n            const allPassthrough = gateResults.every(g => g.action !== 'drop' && g.action !== 'pair');\\n            if (allPassthrough) {\\n              const last = msgs[msgs.length - 1];\\n              const access = gateResults[gateResults.length - 1].access;\\n              if ('sendTyping' in last.channel) { void last.channel.sendTyping().catch(() => {}); }\\n              if (access && access.ackReaction) { void last.react(access.ackReaction).catch(() => {}); }\\n              const combined = msgs.map(m => {\\n                const atts = [];\\n                for (const att of m.attachments.values()) {\\n                  const kb = (att.size / 1024).toFixed(0);\\n                  atts.push(\`\${safeAttName(att)} (\${att.contentType ?? 'unknown'}, \${kb}KB)\`);\\n                }\\n                return m.content || (atts.length > 0 ? '(attachment)' : '');\\n              }).filter(c => c).join('\\\\n');\\n              if (combined) {\\n                mcp.notification({\\n                  method: 'notifications/claude/channel',\\n                  params: {\\n                    content: combined,\\n                    meta: {\\n                      chat_id: last.channelId,\\n                      message_id: last.id,\\n                      user: last.author.username,\\n                      user_id: last.author.id,\\n                      ts: last.createdAt.toISOString(),\\n                      message_count: String(msgs.length),\\n                      batched: 'true',\\n                    },\\n                  },\\n                }).catch(err => process.stderr.write(\`discord: batched delivery failed: \${err}\\\\n\`));\\n                return;\\n              }\\n            }\\n          } catch (e) { process.stderr.write(\`discord: batch attempt failed, falling back: \${e}\\\\n\`); }\\n        }\\n      }\\n      for (const m of msgs) {\\n        await handleInbound(m).catch(e =>\\n          process.stderr.write(\`discord: handleInbound failed: \${e}\\\\n\`)\\n        )\\n      }";
+      if (content.includes(batchTarget) && !content.includes('SENTO PATCH: batch')) {
+        content = content.replace(batchTarget, batchReplace);
+        patched = true;
+      }
+
       if (patched) {
         fs.writeFileSync(serverTs, content);
         log('Re-applied Discord patches after update');
