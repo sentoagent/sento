@@ -92,7 +92,7 @@ export async function update() {
 
       // Import from the NEWLY INSTALLED package, not the currently-running code
       const newPkg = path.join(npmGlobal, "lib/node_modules/sentoagent/src/templates/guardian.js");
-      const guardianMod = fs.existsSync(newPkg.replace(".js", ".js"))
+      const guardianMod = fs.existsSync(newPkg)
         ? await import("file://" + newPkg)
         : await import("../templates/guardian.js");
 

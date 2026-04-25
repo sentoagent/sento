@@ -53,6 +53,7 @@ program
 program
   .command("update")
   .description("Update Claude Code, plugins, and re-apply patches")
+  .option("--skip-self-update", "Internal: skip CLI self-update (used during re-exec)", false)
   .action(update);
 
 program
