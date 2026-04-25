@@ -120,6 +120,85 @@ function sv(s) { try { fs.writeFileSync(STATE, JSON.stringify(s)); } catch {} }
 function tm(n = 30) { try { return execFileSync('tmux', ['capture-pane', '-t', SESSION, '-p', '-S', '-' + n], { encoding: 'utf-8', timeout: 5000 }); } catch { return null; } }
 function alive() { try { return execFileSync('tmux', ['ls'], { encoding: 'utf-8', timeout: 5000 }).includes(SESSION); } catch { return false; } }
 
+// ─── Discord plugin stall detection ───
+// The Discord plugin batches incoming messages then fires them via mcp.notification
+// over stdio to the Claude session. Under high concurrent load (active human chat
+// + multiple /loop fires + crons), the MCP transport can backpressure and messages
+// get stuck in the plugin buffer with no retry. The plugin doesn't crash, doesn't
+// log errors visibly, just silently stops delivering. We detect this by comparing
+// the latest user-authored message on Discord (via Discord API) against when the
+// agent was last actively processing in tmux. If there's a fresh Discord message
+// >2 min newer than the agent's last 'esc to interrupt' AND the agent has been
+// idle for >2 min, the plugin has stalled. Restart fixes it.
+
+let lastDiscordUserTs = 0;
+let lastBusyAt = 0;
+let lastStallCheck = 0;
+let lastStallRestart = 0;
+
+async function checkDiscordStall() {
+  if (CHANNEL.type !== 'discord' || !CHANNEL.token) return;
+  if (Date.now() - lastStallCheck < 60000) return; // throttle to ~1/min
+  lastStallCheck = Date.now();
+
+  // Channels to poll: configured monitor + everything in access.json groups
+  let channelIds = CHANNEL.monitorId ? [CHANNEL.monitorId] : [];
+  try {
+    const accessPath = HOME + '/.claude/channels/discord/access.json';
+    const access = JSON.parse(fs.readFileSync(accessPath, 'utf-8'));
+    channelIds = [...new Set([...channelIds, ...Object.keys(access.groups || {})])];
+  } catch {}
+  if (channelIds.length === 0) return;
+
+  // Find latest user-authored message timestamp across all monitored channels
+  let latestTs = lastDiscordUserTs;
+  for (const cid of channelIds) {
+    try {
+      const r = await fetch('https://discord.com/api/v10/channels/' + cid + '/messages?limit=1', {
+        headers: { Authorization: 'Bot ' + CHANNEL.token }
+      });
+      if (!r.ok) continue;
+      const msgs = await r.json();
+      const userMsg = Array.isArray(msgs) ? msgs.find(m => !m.author.bot) : null;
+      if (userMsg) {
+        const ts = new Date(userMsg.timestamp).getTime();
+        if (ts > latestTs) latestTs = ts;
+      }
+    } catch {}
+  }
+  lastDiscordUserTs = latestTs;
+
+  // Track when agent is currently busy (only the tail, to avoid scrollback false positives)
+  const cap = tm();
+  if (cap) {
+    const tailCap = cap.split('\\n').slice(-25).join('\\n');
+    if (tailCap.includes('esc to interrupt')) {
+      lastBusyAt = Date.now();
+      return;
+    }
+  }
+
+  // Stall: Discord has user message newer than last-busy + 2 min, agent idle > 2 min
+  const now = Date.now();
+  const STALL_THRESHOLD = 120000; // 2 minutes
+  const RESTART_COOLDOWN = 600000; // 10 minutes between auto-restarts
+
+  if (lastDiscordUserTs > lastBusyAt + STALL_THRESHOLD && now - lastBusyAt > STALL_THRESHOLD) {
+    if (now - lastStallRestart < RESTART_COOLDOWN) {
+      log('Discord stall detected but auto-restarted recently, skipping');
+      return;
+    }
+    const msgAge = Math.round((now - lastDiscordUserTs) / 1000);
+    const idleFor = Math.round((now - lastBusyAt) / 1000);
+    log('Discord plugin stall detected (msg ' + msgAge + 's old, idle ' + idleFor + 's). Restarting.');
+    notify('\\uD83D\\uDD04 **' + SESSION + '** Discord plugin stalled, auto-restarting...');
+    lastStallRestart = now;
+    lastDiscordUserTs = 0;
+    lastBusyAt = now;
+    restart();
+  }
+}
+
 // ─── Post-restart /loop nudge ───
 // /loop scheduled tasks die when the Claude session restarts. CLAUDE.md is passive
 // context so the agent won't re-create them on its own. This function injects a
@@ -589,6 +668,7 @@ setInterval(() => {
   loadSentoConfig();
   CHANNEL = detectChannel();
   check(); handleCommands(); checkPairResponse();
+  checkDiscordStall();
   checkForUpdates();
 }, 15000);
 check();
