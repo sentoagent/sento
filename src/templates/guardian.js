@@ -283,7 +283,10 @@ function check() {
   // false positive. Explicit class keeps the match on a single line.
   const tail = o.split('\\n').slice(-25).join('\\n');
   const hasStuckInput = /^❯[ \\u00A0\\t]+\\S/m.test(tail);
-  const isBusy = o.includes('esc to interrupt');
+  // isBusy must check tail too, NOT the full capture. Old scrollback often
+  // retains "esc to interrupt" from previous turns; checking full capture
+  // would make Guardian think the agent is permanently busy and never flush.
+  const isBusy = tail.includes('esc to interrupt');
   if (hasStuckInput && !isBusy) {
     log('Stuck prompt detected — flushing with Enter Enter');
     try { execFileSync('tmux', ['send-keys', '-t', SESSION, 'Enter', 'Enter'], { timeout: 5000 }); } catch {}
