@@ -138,6 +138,7 @@ let lastDiscordUserTs = Date.now();
 let lastBusyAt = Date.now();
 let lastStallCheck = 0;
 let lastStallRestart = Date.now();
+let lastTailCapture = null;
 
 async function checkDiscordStall() {
   if (CHANNEL.type !== 'discord' || !CHANNEL.token) return;
@@ -171,24 +172,41 @@ async function checkDiscordStall() {
   }
   lastDiscordUserTs = latestTs;
 
-  // Track when agent is currently busy (only the tail, to avoid scrollback false positives)
+  // Track when agent is currently busy. Multi-signal check:
+  //  1. "esc to interrupt" visible → busy (most reliable when present)
+  //  2. Any of Claude Code's ~175 rotating activity words (extracted from cli.js)
+  //  3. Activity-line pattern markers: "(Ns " timing, "↑↓ tokens", "✻" star
+  //  4. Tmux capture changed since last check → busy (catches token streaming
+  //     even when activity indicators aren't reliably rendered)
+  // Activity words rotate every 1-2s during processing; stable capture > threshold
+  // reliably indicates a genuinely idle/stuck agent.
+  const ACTIVITY_WORDS = /\\b(Accomplishing|Actioning|Actualizing|Advising|Antialiasing|Architecting|Ascending|Assuming|Befuddling|Billowing|Blanching|Bloviating|Boogieing|Boondoggling|Bootstrapping|Burrowing|Calculating|Canoodling|Caramelizing|Cascading|Catapulting|Censoring|Cerebrating|Channeling|Channelling|Choreographing|Churning|Clauding|Coalescing|Cogitating|Combobulating|Composing|Computing|Concocting|Connecting|Considering|Containing|Contemplating|Crafting|Creating|Crunching|Crystallizing|Cultivating|Deciphering|Deleting|Deliberating|Descending|Determining|Discombobulating|Dithering|Doodling|Drizzling|Effecting|Elucidating|Embellishing|Enchanting|Envisioning|Evaporating|Fermenting|Fetching|Finagling|Flibbertigibbeting|Flummoxing|Fluttering|Frolicking|Frosting|Gallivanting|Galloping|Garnishing|Generating|Germinating|Gesticulating|Gitifying|Grooving|Harmonizing|Hatching|Hullaballooing|Hyperspacing|Ideating|Imagining|Improvising|Incubating|Inferring|Infusing|Interleaving|Ionizing|Jitterbugging|Julienning|Kneading|Learning|Leavening|Levitating|Lighting|Listening|Lollygagging|Manifesting|Marinating|Meandering|Metamorphosing|Monitoring|Moonwalking|Moseying|Mustering|Nebulizing|Newspapering|Noodling|Nucleating|Orbiting|Orchestrating|Ordering|Osmosing|Perambulating|Percolating|Perusing|Philosophising|Photosynthesizing|Pivoting|Pollinating|Pondering|Pontificating|Pouncing|Precipitating|Prestidigitating|Processing|Proofing|Propagating|Puttering|Puzzling|Quantumizing|Querying|Razzmatazzing|Recalling|Recombobulating|Reconnecting|Resampling|Reticulating|Roosting|Ruminating|Sampling|Scampering|Schlepping|Scurrying|Searching|Seasoning|Shenaniganing|Shimmying|Simmering|Skedaddling|Sketching|Slithering|Smooshing|Spelunking|Spinning|Sprouting|Sublimating|Swirling|Swooping|Symbioting|Synthesizing|Tempering|Thinking|Thinning|Throttling|Thundering|Tinkering|Tomfoolering|Transfiguring|Transmuting|Twisting|Undulating|Unfurling|Unravelling|Updating|Validating|Waddling|Wandering|Whatchamacalliting|Whirlpooling|Whirring|Whisking|Wibbling|Wrangling|Zigzagging)\\b/;
+  const ACTIVITY_PATTERN = /\\(\\d+s[\\s·•]|✻|⏺|[↑↓]\\s*[\\d.]+k?\\s*tokens?/i;
   const cap = tm();
   if (cap) {
     const tailCap = cap.split('\\n').slice(-25).join('\\n');
-    if (tailCap.includes('esc to interrupt')) {
+    const hasInterrupt = tailCap.includes('esc to interrupt');
+    const hasActivity = ACTIVITY_WORDS.test(tailCap);
+    const hasPattern = ACTIVITY_PATTERN.test(tailCap);
+    // Strip clock-tick numbers + status-bar clutter for capture-change detection
+    const normalized = tailCap.replace(/\\d{1,2}:\\d{2}(:\\d{2})?\\s*(AM|PM)?/gi, '').replace(/\\(\\d+s\\b/g, '').replace(/\\s+/g, ' ');
+    const captureChanged = lastTailCapture !== null && normalized !== lastTailCapture;
+    lastTailCapture = normalized;
+    if (hasInterrupt || hasActivity || hasPattern || captureChanged) {
       lastBusyAt = Date.now();
       return;
     }
   }
 
-  // Stall: Discord has user message newer than last-busy + 2 min, agent idle > 2 min
+  // Stall: Discord has user message newer than last-busy + threshold, agent idle > threshold
   const now = Date.now();
-  const STALL_THRESHOLD = 120000; // 2 minutes
-  const RESTART_COOLDOWN = 600000; // 10 minutes between auto-restarts
+  const STALL_THRESHOLD = 300000; // 5 minutes (was 2 min — too aggressive)
+  const RESTART_COOLDOWN = 1800000; // 30 minutes between auto-restarts (was 10 min)
+  const FRESHNESS_WINDOW = 14400000; // 4 hours: skip stall check if no recent Discord traffic
 
-  // Require: msg newer than last-busy + 2min, agent idle > 2min,
-  // AND msg itself is at least 2min old (so plugin has had a fair shot at delivering).
   const msgAge = now - lastDiscordUserTs;
+  // If no Discord message in the last 4 hours, agent being idle is normal — skip stall check
+  if (msgAge > FRESHNESS_WINDOW) return;
   if (lastDiscordUserTs > lastBusyAt + STALL_THRESHOLD && now - lastBusyAt > STALL_THRESHOLD && msgAge > STALL_THRESHOLD) {
     if (now - lastStallRestart < RESTART_COOLDOWN) {
       log('Discord stall detected but auto-restarted recently, skipping');
