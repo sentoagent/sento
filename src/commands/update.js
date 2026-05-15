@@ -104,9 +104,22 @@ export async function update() {
       fs.writeFileSync(path.join(workspace, "guardian.mjs"), guardianMod.renderGuardian(guardianConfig));
       fs.chmodSync(path.join(workspace, "guardian.mjs"), 0o700);
       log.success("Guardian updated");
+
+      // Regenerate watchdog.sh too — it carries the Guardian-health-check
+      // (relaunch Guardian if dead). Previously update.js skipped this, so
+      // existing agents never received the check via `sento update` and the
+      // secondary safety net silently never deployed.
+      const newWatchdogPkg = path.join(npmGlobal, "lib/node_modules/sentoagent/src/templates/watchdog.js");
+      const watchdogMod = fs.existsSync(newWatchdogPkg)
+        ? await import("file://" + newWatchdogPkg)
+        : await import("../templates/watchdog.js");
+      const watchdogPath = path.join(workspace, "watchdog.sh");
+      fs.writeFileSync(watchdogPath, watchdogMod.renderWatchdog(guardianConfig));
+      fs.chmodSync(watchdogPath, 0o700);
+      log.success("Watchdog updated");
     }
   } catch (e) {
-    log.warn("Could not update Guardian: " + e.message);
+    log.warn("Could not update Guardian/Watchdog: " + e.message);
   }
 
   // Generate/update permissions allowlist (settings.json)
