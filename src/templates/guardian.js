@@ -1,5 +1,5 @@
 export function renderGuardian(config) {
-  const startScript = config.agentName === "blair" ? "start-blair.sh" : "start-agent.sh";
+  const startScript = "start-agent.sh";
 
   return `#!/usr/bin/env node
 // Sentō Guardian — Unkillable agent monitor
@@ -728,6 +728,23 @@ function getLocalVersion() {
   return '0.0.0';
 }
 
+// Spawn a fresh, fully-detached Guardian before this process exits after a
+// self-update. The old comment claimed "cron @reboot or watchdog relaunches"
+// — neither does: @reboot only fires on system boot, and watchdog.sh watches
+// the tmux session, not Guardian. Without this respawn the agent zombies
+// silently after every auto-update (this is the bug that killed Blair for
+// ~3 weeks). setsid+nohup+</dev/null fully detaches from the dying parent so
+// the new Guardian survives our process.exit().
+function respawnGuardian() {
+  try {
+    const guardianPath = HOME + '/workspace/guardian.mjs';
+    execFileSync('bash', ['-c', 'setsid nohup node "' + guardianPath + '" >> "' + LOG + '" 2>&1 < /dev/null &'], { stdio: 'ignore' });
+    log('Respawned detached Guardian — old process exiting.');
+  } catch (e) {
+    log('Self-respawn failed: ' + e.message + ' — watchdog Guardian-check is the fallback.');
+  }
+}
+
 async function checkForUpdates() {
   const now = Date.now();
   if (now - lastUpdateCheck < UPDATE_INTERVAL) return;
@@ -747,9 +764,9 @@ async function checkForUpdates() {
         execFileSync('npm', ['install', '-g', '--prefix', HOME + '/.npm-global', 'sentoagent@latest'], { timeout: 60000, env });
         // Run sento update to regenerate Guardian + patches
         try { execFileSync(HOME + '/.npm-global/bin/sento', ['update'], { timeout: 120000, cwd: HOME + '/workspace', env }); } catch {}
-        log('Updated to v' + latest + '. Restarting Guardian...');
+        log('Updated to v' + latest + '. Respawning Guardian...');
         notify('\\u2705 Updated to v' + latest + '. Guardian restarting...');
-        // Exit — cron @reboot or watchdog will relaunch
+        respawnGuardian();
         setTimeout(() => process.exit(0), 2000);
         return;
       }
@@ -765,8 +782,9 @@ async function checkForUpdates() {
         notify('\\u2B06\\uFE0F Updating **' + SESSION + '** (' + behind + ' new commits)...');
         execFileSync('git', ['pull', 'origin', 'main'], { cwd: gitDir, timeout: 30000 });
         try { execFileSync('npm', ['install', '--production'], { cwd: gitDir, timeout: 60000 }); } catch {}
-        log('Git updated. Restarting Guardian...');
+        log('Git updated. Respawning Guardian...');
         notify('\\u2705 Updated. Guardian restarting...');
+        respawnGuardian();
         setTimeout(() => process.exit(0), 2000);
         return;
       }
