@@ -386,6 +386,46 @@ function checkAndReapplyPatches() {
   } catch (e) { log('Patch check error: ' + e.message); }
 }
 
+// ─── MCP bun-path self-heal ───────────────────────────────────────────────
+// Newer Claude Code sanitizes PATH when spawning MCP servers, so any plugin
+// whose .mcp.json uses bare "command": "bun" fails silently with
+// "No such file or directory" — the MCP never starts and the channel bot
+// appears offline. Patch every plugin's .mcp.json to use the absolute path
+// to bun (idempotent). Runs alongside checkAndReapplyPatches so it self-
+// heals on every restart, regardless of what Claude Code does upstream.
+function patchMcpBunPaths() {
+  const root = HOME + '/.claude/plugins/marketplaces';
+  if (!fs.existsSync(root)) return;
+  const bunAbs = HOME + '/.bun/bin/bun';
+  if (!fs.existsSync(bunAbs)) { log('MCP bun-path: bun not found at ' + bunAbs + ', skipping'); return; }
+  let touched = 0;
+  try {
+    for (const mp of fs.readdirSync(root)) {
+      const ext = root + '/' + mp + '/external_plugins';
+      if (!fs.existsSync(ext)) continue;
+      for (const pl of fs.readdirSync(ext)) {
+        const mcp = ext + '/' + pl + '/.mcp.json';
+        if (!fs.existsSync(mcp)) continue;
+        try {
+          const raw = fs.readFileSync(mcp, 'utf-8');
+          const data = JSON.parse(raw);
+          let changed = false;
+          for (const name of Object.keys(data.mcpServers || {})) {
+            const srv = data.mcpServers[name];
+            if (srv && srv.command === 'bun') { srv.command = bunAbs; changed = true; }
+          }
+          if (changed) {
+            fs.writeFileSync(mcp, JSON.stringify(data, null, 2));
+            log('MCP bun-path: patched ' + mp + '/' + pl);
+            touched++;
+          }
+        } catch (e) { log('MCP bun-path: skip ' + mcp + ' (' + e.message + ')'); }
+      }
+    }
+  } catch (e) { log('MCP bun-path scan error: ' + e.message); }
+  if (touched) log('MCP bun-path: ' + touched + ' file(s) updated');
+}
+
 // ─── Restart ───
 function restart() {
   log('Restarting...');
@@ -406,7 +446,7 @@ function restart() {
         const st = ld(); st.needsNudge = Date.now(); sv(st);
       }
       catch (e) { log('Failed: ' + e.message); }
-      setTimeout(() => { checkAndReapplyPatches(); }, 10000);
+      setTimeout(() => { checkAndReapplyPatches(); patchMcpBunPaths(); }, 10000);
     }, 3000);
   }, 3000);
 }

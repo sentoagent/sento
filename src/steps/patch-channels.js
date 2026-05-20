@@ -148,9 +148,52 @@ bot.on('message:text', async ctx => {
   return changed;
 }
 
+// ─── MCP bun-path self-heal ───
+// Newer Claude Code sanitizes PATH when spawning MCP servers, so any plugin
+// whose .mcp.json uses bare "command": "bun" fails silently with
+// "No such file or directory" and the channel bot appears offline. Patch
+// every installed plugin's .mcp.json to the absolute bun path (idempotent).
+function patchMcpBunPaths() {
+  const home = os.homedir();
+  const root = path.join(home, ".claude/plugins/marketplaces");
+  const bunAbs = path.join(home, ".bun/bin/bun");
+  if (!fs.existsSync(root)) return 0;
+  if (!fs.existsSync(bunAbs)) { log.warn(`bun not found at ${bunAbs}, skipping .mcp.json patch`); return 0; }
+  let touched = 0;
+  for (const mp of fs.readdirSync(root)) {
+    const ext = path.join(root, mp, "external_plugins");
+    if (!fs.existsSync(ext)) continue;
+    for (const pl of fs.readdirSync(ext)) {
+      const mcpPath = path.join(ext, pl, ".mcp.json");
+      if (!fs.existsSync(mcpPath)) continue;
+      try {
+        const data = JSON.parse(fs.readFileSync(mcpPath, "utf-8"));
+        let changed = false;
+        for (const name of Object.keys(data.mcpServers || {})) {
+          const srv = data.mcpServers[name];
+          if (srv && srv.command === "bun") { srv.command = bunAbs; changed = true; }
+        }
+        if (changed) {
+          fs.writeFileSync(mcpPath, JSON.stringify(data, null, 2));
+          log.success(`MCP bun-path: patched ${mp}/${pl}`);
+          touched++;
+        }
+      } catch (e) { log.warn(`MCP bun-path: skip ${mcpPath} (${e.message})`); }
+    }
+  }
+  return touched;
+}
+
 // ─── Main export ───
 
 export async function patchChannels(config) {
+  // Defensive: ensure every plugin's .mcp.json has an absolute bun path.
+  // Independent of channel type — fixes ALL MCP-based plugins.
+  log.step("Ensuring absolute bun paths in plugin .mcp.json files...");
+  const n = patchMcpBunPaths();
+  if (n === 0) log.success("All plugin .mcp.json files already use absolute bun paths");
+
+
   // Discord patches
   if (config.channelType === "discord" || config.patchAll) {
     log.step("Patching Discord plugin...");
