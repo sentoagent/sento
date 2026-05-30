@@ -549,6 +549,34 @@ function check() {
     try { execFileSync('tmux', ['send-keys', '-t', SESSION, 'Enter', 'Enter'], { timeout: 5000 }); } catch {}
   }
 
+  // AUTOCOMPACT v1: prevent agents from going unusable at high context. When
+  // tmux shows >= 80% context used, snapshot the recent buffer to memory/
+  // (so the agent has a paper trail of what was happening), then fire /compact.
+  // Throttled to once per 15 min so slow-clearing compact does not re-trigger.
+  // Wrapped so any bug here cannot break the rest of the guardian loop.
+  try {
+    const ctxMatch = o.match(/(\\d+)% context used/);
+    if (ctxMatch) {
+      const ctxPct = parseInt(ctxMatch[1], 10);
+      const now = Date.now();
+      const lastCompact = s.lastCompact || 0;
+      if (ctxPct >= 80 && (now - lastCompact) > 15 * 60 * 1000) {
+        log('AUTOCOMPACT: context at ' + ctxPct + '% — capturing snapshot');
+        try {
+          const snap = execFileSync('tmux', ['capture-pane', '-t', SESSION, '-p', '-S', '-200'], { encoding: 'utf8', timeout: 5000 });
+          const tsName = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          const fname = process.env.HOME + '/workspace/memory/autocompact-' + tsName + '.log';
+          fs.writeFileSync(fname, '# Pre-compact snapshot\\n# Session: ' + SESSION + '\\n# Context: ' + ctxPct + '%\\n# Time: ' + new Date().toISOString() + '\\n# Reason: auto-fired by guardian at >= 80% context\\n\\n' + snap);
+          log('AUTOCOMPACT: snapshot saved to ' + fname);
+        } catch (snapE) { log('AUTOCOMPACT snapshot error (non-fatal): ' + (snapE && snapE.message)); }
+        log('AUTOCOMPACT: firing /compact');
+        execFileSync('tmux', ['send-keys', '-t', SESSION, '/compact', 'Enter'], { timeout: 5000 });
+        s.lastCompact = now;
+        sv(s);
+      }
+    }
+  } catch (e) { log('AUTOCOMPACT error (non-fatal): ' + (e && e.message)); }
+
   // Check for permission prompts — AUTO-ACCEPT immediately
   // Agents run with --dangerously-skip-permissions (user consented to full autonomy)
   // Guardian auto-accepts any prompt Claude Code shows, no Discord forwarding needed

@@ -9,9 +9,15 @@ STATE_FILE="/tmp/sento-watchdog-\${SESSION}.state"
 RESTART_LOG="/tmp/sento-watchdog-\${SESSION}.restarts"
 LOG="\$HOME/workspace/memory/watchdog.log"
 
-# ─── Guardian health check ───
-# If Guardian is not running, relaunch it (may have exited after auto-update)
-if ! pgrep -u "$(whoami)" -f "guardian.mjs" > /dev/null 2>&1; then
+# ─── Guardian health check (DEDUP v1) ───
+# Count guardians. Zero = relaunch. One = healthy. >1 = kill extras (keep oldest PID).
+GUARDIAN_PIDS=\$(pgrep -u "$(whoami)" -f "guardian.mjs" 2>/dev/null)
+GUARDIAN_COUNT=\$(echo -n "\$GUARDIAN_PIDS" | grep -c . || true)
+if [ "\$GUARDIAN_COUNT" -gt 1 ]; then
+  EXTRAS=\$(echo "\$GUARDIAN_PIDS" | sort -n | tail -n +2)
+  echo "$(date): \$GUARDIAN_COUNT guardians running. Killing extras: \$EXTRAS" >> "\$LOG"
+  echo "\$EXTRAS" | xargs -r kill -9 2>/dev/null
+elif [ "\$GUARDIAN_COUNT" -eq 0 ]; then
   echo "$(date): Guardian not running. Relaunching..." >> "\$LOG"
   cd "\$HOME/workspace" && nohup node guardian.mjs >> memory/guardian.log 2>&1 &
 fi
