@@ -46,11 +46,13 @@ export async function config() {
     const { model } = await inquirer.prompt([{
       type: "list",
       name: "model",
-      message: "Select model:",
+      // Alias values → always the latest of each tier (see prompts.js note).
+      message: "Select model (each is the latest of its tier):",
       choices: [
-        { name: "Sonnet 4.6 (fast, recommended)", value: "sonnet" },
-        { name: "Opus 4.6 (powerful, slower)", value: "opus" },
-        { name: "Haiku 4.5 (fastest, lighter)", value: "haiku" },
+        { name: "Sonnet (balanced, recommended)", value: "sonnet" },
+        { name: "Opus (most capable, slower)", value: "opus" },
+        { name: "Haiku (fastest, lightest)", value: "haiku" },
+        { name: "Fable (creative writing)", value: "fable" },
       ],
     }]);
 
