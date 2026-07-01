@@ -22,6 +22,7 @@ A reflection loop only improves an agent when it's **closed by a real external s
 - **Framework is shared (npm); knowledge is private (files on your box).** A stranger installing Sentō gets the *capability*, their agents start blank and learn their own stuff. Nothing of yours leaks.
 - **Fleet Brain** = facts/skills only ("Zoho returns custom fields keyed by label", "the Discord plugin drops bot messages"). Objective — no personal spin, safe to share *within one owner's fleet*.
 - **Private Self** = everything that makes the agent *it*. Never shared, never overwritten by the collective.
+- **SELF.md is persona-agnostic by construction** (learned in the prototype). Its anchor *points to CLAUDE.md* — the identity already entered at `sento setup` — instead of hard-coding a persona. So it auto-derives for ANY agent with **zero hand-seeding**; the dream only fills the evolving sections (views, calibration, narrative). This is what lets the whole engine be a one-shot setup step instead of per-agent handiwork.
 - **Community Codex** = a future opt-in ecosystem layer: only tool/framework facts, classifier-walled + sanitized (strip names/paths/secrets/business specifics), community-curated. Off by default. Design the wall now, ship it off.
 
 **File layout per agent (`~/workspace/memory/`):**
@@ -92,8 +93,11 @@ Only **facts + verified skills** are shareable. **Views, strategy, taste, calibr
 
 ---
 
-## 7. Build order
-1. **Prototype on kai** (gabriel's personal assistant — high-interaction, safe; signal = task outcomes + user corrections): prediction-error capture → nightly dream → MEMORY.md + SELF.md + PREP.md, two-layer memory. Watch the calibration + self-narrative form firsthand. ← START HERE
-2. Roll the spine to cass/Jordan/Masa (P&L signal); stand up the **Fleet Brain** shared collection + weekly council + divergence monitor.
-3. Generalize the dream into Sentō templates (`claude-md.js`, a `dream` cron template, the `post-session` hook) so every new agent gets it.
-4. Community Codex: build the classifier wall + sanitizer, keep it off by default.
+## 7. Build order (updated from the prototype)
+1. **Prototype on the agents you actually USE** — high-interaction is the right test bed. *Lesson: a low-interaction agent (kai) generates too little signal to watch; the real learning shows on the daily-driver agents.* Ship the reusable, idempotent, additive component (`dream-retrofit.sh <user> <session>`): persona-agnostic SELF.md + PREP + fleet-candidates + dream cron + the CLAUDE "Dreaming" section. ✅ done: kai, jordan, mira, porter.
+2. **Watch a few nights, tune the dream prompt.** Per-domain flavor later (traders lean on `calibration.mjs` for the prediction/outcome signal; assistants on user corrections). The generic prompt works for all as v1.
+3. **Framework integration = the "fresh Sentō gets it automatically" step.** Convert the proven component into Sentō's setup: `src/steps/setup-dream.js` (scaffold + install cron), a `SELF.md` template, the CLAUDE "Dreaming" section in `claude-md.js`, and the dream cron in the crontab template. Then every NEW agent auto-gets the engine at `sento setup` (persona-agnostic anchor = zero config), and `sento update` retrofits any existing fleet. This is the same logic as `dream-retrofit.sh`, ported to the template system.
+4. Stand up the **Fleet Brain** shared collection + weekly council + divergence monitor.
+5. Community Codex: build the classifier wall + sanitizer; keep it off by default.
+
+**Deployment note:** the dream cron fires regardless of restart; the *session-start* reads (SELF/PREP) + prediction-error awareness activate on each agent's next restart.
