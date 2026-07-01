@@ -28,6 +28,25 @@ if [ -z "\$OUTPUT" ]; then
   exit 0
 fi
 
+# ─── Blocking-dialog guard (v1) ───
+# An interactive modal (model switch, permission confirm) freezes an autonomous
+# agent: no human is there to click it, and incoming messages buffer BEHIND it,
+# so the stuck-detection below never sees them (INCOMING reads 0 = "idle") and
+# the agent stays frozen for hours. Detect known blocking prompts and send Esc
+# to cancel them (keeps the current model / denies) — this PRESERVES the agent's
+# work, unlike a restart. These signatures don't appear during normal
+# processing, so Esc won't interrupt live work.
+if echo "\$OUTPUT" | grep -qE "Switch model\\?|Do you want to proceed|Yes, and don.t ask again|❯ 1\\. Yes" && ! echo "\$OUTPUT" | grep -q "esc to interrupt"; then
+  # SAFETY: only fires when a blocking signature is present AND the agent is NOT
+  # actively processing (a real modal replaces the "esc to interrupt" bar). This
+  # guarantees Esc can never interrupt a working agent — only clear a true freeze.
+  tmux send-keys -t "\$SESSION" Escape 2>/dev/null
+  sleep 1
+  tmux send-keys -t "\$SESSION" Escape 2>/dev/null
+  echo "\$(date): \$SESSION - blocking dialog detected; sent Esc to dismiss (work preserved)." >> "\$LOG"
+  exit 0
+fi
+
 # ─── Count signals ───
 INCOMING=$(echo "\$OUTPUT" | grep -c "← discord\\|← telegram\\|← slack\\|← imessage")
 REPLIES=$(echo "\$OUTPUT" | grep -c "discord - reply\\|telegram.*reply\\|slack.*reply")
