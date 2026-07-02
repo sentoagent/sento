@@ -1,6 +1,6 @@
 {
   "name": "sentoagent",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Agents sent to fight your battles. Self-improving AI agents powered by Claude Code.",
   "author": "Gabriel Gil",
   "license": "MIT",
