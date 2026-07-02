@@ -117,6 +117,27 @@ export async function update() {
       fs.writeFileSync(watchdogPath, watchdogMod.renderWatchdog(guardianConfig));
       fs.chmodSync(watchdogPath, 0o700);
       log.success("Watchdog updated");
+
+      // Dream engine — scaffold private memory + schedule the nightly dream.
+      // Idempotent + non-destructive (SELF.md and evolving files are never
+      // clobbered), so existing agents gain the engine without losing growth.
+      try {
+        const newDreamPkg = path.join(npmGlobal, "lib/node_modules/sentoagent/src/steps/setup-dream.js");
+        const dreamMod = fs.existsSync(newDreamPkg)
+          ? await import("file://" + newDreamPkg)
+          : await import("../steps/setup-dream.js");
+        let creatorName = "you", timezone = "";
+        const cm = path.join(workspace, "CLAUDE.md");
+        if (fs.existsSync(cm)) {
+          const md = fs.readFileSync(cm, "utf-8");
+          creatorName = (md.match(/- Creator: (.+)/)?.[1] || creatorName).trim();
+          timezone = (md.match(/is in (.+)/)?.[1] || "").trim();
+        }
+        await dreamMod.setupDream({ agentName: guardianConfig.agentName, creatorName, timezone });
+        log.success("Dream engine updated");
+      } catch (e) {
+        log.warn("Could not set up dream engine: " + e.message);
+      }
     }
   } catch (e) {
     log.warn("Could not update Guardian/Watchdog: " + e.message);

@@ -8,6 +8,7 @@ import { installPlugins } from "../steps/install-plugins.js";
 import { configureChannel } from "../steps/configure-channel.js";
 import { installClawmem } from "../steps/install-clawmem.js";
 import { setupWorkspace } from "../steps/setup-workspace.js";
+import { setupDream } from "../steps/setup-dream.js";
 import { patchChannels } from "../steps/patch-channels.js";
 import { runWithSpinner } from "../utils/exec.js";
 import chalk from "chalk";
@@ -40,6 +41,7 @@ export async function init() {
     ["Patching channel plugins", () => patchChannels(config)],
     ["Installing ClawMem", () => installClawmem(config)],
     ["Setting up workspace", () => setupWorkspace(config)],
+    ["Setting up dream engine", () => setupDream(config)],
   ];
 
   for (const [name, fn] of steps) {

@@ -1,3 +1,5 @@
+import { renderDreamingSection } from "./dream.js";
+
 export function renderClaudeMd(config) {
   return `# ${config.agentName} - AI Agent
 
@@ -18,8 +20,7 @@ NEVER take action on external APIs without explicit approval from ${config.creat
 ## Auto-Skill Creation
 After complex tasks (5+ steps), create a reusable skill in ~/workspace/skills/custom/
 
-## Learning Journal
-Daily log at ~/workspace/memory/YYYY-MM-DD.md
+${renderDreamingSection()}
 
 ## Response Timing
 The Discord plugin buffers messages for 30-90 seconds before you see them. Just respond naturally. Do NOT add any sleep or delay.
@@ -93,7 +94,7 @@ These crontab entries are required and should NOT be removed:
 - \`@reboot\` tmux new-session for agent startup
 - \`@reboot\` node guardian.mjs
 - \`*/5 * * * *\` watchdog health check
-- \`55 3 * * *\` daily clawmem memory update (3:55 AM UTC = 11:55 PM EST)
+- \`55 3 * * *\` nightly dream — reflect, calibrate, grow (also runs clawmem update). 3:55 AM UTC = 11:55 PM EST
 
 ### Never use bash sleep/wait loops
 They burn tokens continuously in every response. Always use /loop or crontab instead.
