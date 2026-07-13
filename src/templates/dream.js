@@ -84,37 +84,52 @@ Post nothing anywhere. This is how the fleet learns from each other: facts share
 // computes the same answer from the same filesystem. Add or remove an agent and the
 // rotation reshuffles itself. If the curator is stuck (FLEET.md untouched 14+ days),
 // the next agent in line takes over — a frozen agent must not mean a dead fleet brain.
+// The election lives in its OWN .js file, not inlined in bash. Inlining node inside a
+// shell script (inside a heredoc, inside ssh) is how you ship `unexpected EOF` to ten
+// agents and only find out because none of them elected a curator.
+export function renderFleetElect() {
+  return `// Sentō fleet council election — deterministic, no coordination, no privacy violation.
+// Discovery uses the SHARED REGISTRY, never /home: agent homes are 0700 by design
+// (SELF.md is private), so scanning /home silently yields a permanent fleet of one.
+// Every agent runs this and computes the SAME curator. Prints "yes" or "no".
+const fs = require("fs");
+const path = require("path");
+
+const me = process.argv[2];
+const fleetDir = process.argv[3] || "/srv/sento-fleet";
+const registry = path.join(fleetDir, "agents");
+
+// Announce myself. Idempotent — this is how a new agent joins the fleet with no config.
+try {
+  fs.mkdirSync(registry, { recursive: true });
+  fs.writeFileSync(path.join(registry, me), new Date().toISOString() + "\\n");
+} catch { /* solo agent, no shared dir */ }
+
+let agents = [];
+try { agents = fs.readdirSync(registry).filter((f) => !f.startsWith(".")).sort(); } catch {}
+
+if (agents.length <= 1) { console.log("no"); process.exit(0); } // fleet of one: nothing to curate
+
+const d = new Date();
+const curator = agents[(d.getUTCFullYear() * 12 + d.getUTCMonth()) % agents.length];
+if (curator === me) { console.log("yes"); process.exit(0); }
+
+// Liveness fallback: curator hasn't curated in 14d -> presumed stuck, next one steps up.
+let stale = false;
+try { stale = (Date.now() - fs.statSync(path.join(fleetDir, "FLEET.md")).mtimeMs) > 14 * 86400000; } catch {}
+const next = agents[(agents.indexOf(curator) + 1) % agents.length];
+console.log(stale && next === me ? "yes" : "no");
+`;
+}
+
 export function renderCouncilGuard(config, fleetDir = DEFAULT_FLEET_DIR) {
   return `#!/bin/bash
-# Sentō fleet council — self-electing. Runs on every agent; only the curator acts.
+# Sentō fleet council — self-electing. Ships to EVERY agent; only the curator acts.
 ME="${config.agentName}"
 FLEET_DIR="${fleetDir}"
-
-SHOULD_RUN=$(node -e '
-const fs=require("fs"),path=require("path");
-const me=process.argv[1], fleetDir=process.argv[2];
-const agents=[];
-for (const u of (()=>{try{return fs.readdirSync("/home")}catch{return[]}})()) {
-  const ws=path.join("/home",u,"workspace");
-  if(!fs.existsSync(path.join(ws,"dream-prompt.txt"))) continue;
-  let name=u;
-  try{const c=JSON.parse(fs.readFileSync(path.join(ws,".sento-config.json"),"utf8"));if(c.agentName)name=c.agentName;}catch{}
-  agents.push(name);
-}
-if(agents.length<=1){console.log("no");process.exit(0)}   // a fleet of one has nothing to curate
-agents.sort();
-const d=new Date(), mi=d.getUTCFullYear()*12+d.getUTCMonth();
-const curator=agents[mi%agents.length];
-if(curator===me){console.log("yes");process.exit(0)}
-// Liveness fallback: curator looks stuck -> next in rotation steps up.
-let stale=false;
-try{stale=(Date.now()-fs.statSync(path.join(fleetDir,"FLEET.md")).mtimeMs)>14*86400000}catch{}
-const next=agents[(agents.indexOf(curator)+1)%agents.length];
-console.log(stale && next===me ? "yes" : "no");
-' "$ME" "$FLEET_DIR')
-
+SHOULD_RUN=$(node "$HOME/workspace/fleet-elect.js" "$ME" "$FLEET_DIR" 2>/dev/null)
 [ "$SHOULD_RUN" = "yes" ] || exit 0
-exec ~/workspace/cron-trigger.sh "$ME" "$(cat ~/workspace/council-prompt.txt)"
+exec "$HOME/workspace/cron-trigger.sh" "$ME" "$(cat "$HOME/workspace/council-prompt.txt")"
 `;
 }
 

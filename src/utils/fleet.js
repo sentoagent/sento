@@ -12,36 +12,52 @@ import os from "os";
 import path from "path";
 
 export const SHARED_FLEET_DIR = "/srv/sento-fleet";
-const HOMES = "/home";
 const STALE_COUNCIL_DAYS = 14;
 
-// Every Sentō agent drops a .sento-config.json in its workspace. That's our registry —
-// no service discovery, no daemon, just the filesystem telling the truth.
-export function discoverAgents(homesDir = HOMES) {
-  const found = [];
-  let users = [];
-  try { users = fs.readdirSync(homesDir); } catch { return found; }
-
-  for (const user of users) {
-    const cfg = path.join(homesDir, user, "workspace", ".sento-config.json");
-    const dreamed = path.join(homesDir, user, "workspace", "dream-prompt.txt");
-    if (!fs.existsSync(cfg) && !fs.existsSync(dreamed)) continue;
-    let name = user;
-    try {
-      const parsed = JSON.parse(fs.readFileSync(cfg, "utf-8"));
-      if (parsed.agentName) name = parsed.agentName;
-    } catch { /* fall back to the unix user */ }
-    found.push({ user, name, home: path.join(homesDir, user) });
+// Discovery is via a SHARED REGISTRY — never by walking /home.
+//
+// Agent homes are 0700 by design: SELF.md is private and must never be readable by a
+// sibling. So any discovery that scans /home either silently finds nothing (each agent
+// sees only itself -> a permanent fleet of one) or requires tearing down the very
+// privacy wall the system rests on. Both are wrong. Instead agents announce themselves
+// in the shared fleet dir — the one place they're already permitted to meet.
+export function registerSelf(name, fleetDir = SHARED_FLEET_DIR) {
+  try {
+    const registry = path.join(fleetDir, "agents");
+    fs.mkdirSync(registry, { recursive: true });
+    fs.writeFileSync(path.join(registry, name), new Date().toISOString() + "\n");
+    return true;
+  } catch {
+    return false; // solo agent, no shared dir — a fleet of one
   }
-  return found.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// A lone agent keeps a private fleet. The moment a sibling exists, they SHARE one —
+export function discoverAgents(fleetDir = SHARED_FLEET_DIR) {
+  try {
+    return fs
+      .readdirSync(path.join(fleetDir, "agents"))
+      .filter((f) => !f.startsWith("."))
+      .sort()
+      .map((name) => ({ name }));
+  } catch {
+    return [];
+  }
+}
+
+// A lone agent keeps a private fleet. The moment a sibling registers, they SHARE one —
 // automatically. Adding a 10th agent joins the existing fleet with zero config.
-export function resolveFleetDir(homesDir = HOMES) {
+export function resolveFleetDir() {
   if (process.env.SENTO_FLEET_DIR) return process.env.SENTO_FLEET_DIR;
-  const agents = discoverAgents(homesDir);
-  return agents.length > 1 ? SHARED_FLEET_DIR : path.join(os.homedir(), "sento-fleet");
+  // If the shared registry is reachable and has siblings, we're part of a fleet.
+  const shared = discoverAgents(SHARED_FLEET_DIR);
+  if (shared.length > 1) return SHARED_FLEET_DIR;
+  // Can we even join one? (writable /srv means we're on a shared box.)
+  try {
+    fs.mkdirSync(path.join(SHARED_FLEET_DIR, "agents"), { recursive: true });
+    return SHARED_FLEET_DIR;
+  } catch {
+    return path.join(os.homedir(), "sento-fleet");
+  }
 }
 
 // Deterministic council election. Every agent computes the SAME answer independently:
@@ -71,11 +87,13 @@ export function isStaleCouncil(fleetDir, days = STALE_COUNCIL_DAYS) {
 // Called by the weekly council cron on EVERY agent. Only the curator acts; the rest
 // exit silently. That's why the same cron can ship to every agent and the rotation
 // still works with nobody reconfiguring anything.
-export function shouldRunCouncil(myName, { date = new Date(), homesDir = HOMES, fleetDir } = {}) {
-  const agents = discoverAgents(homesDir);
+export function shouldRunCouncil(myName, { date = new Date(), fleetDir } = {}) {
+  const dir0 = fleetDir || resolveFleetDir();
+  registerSelf(myName, dir0);
+  const agents = discoverAgents(dir0);
   if (agents.length <= 1) return false; // a fleet of one has nothing to curate
 
-  const dir = fleetDir || resolveFleetDir(homesDir);
+  const dir = dir0;
   const curator = electCurator(agents, date);
   if (curator === myName) return true;
 
@@ -90,9 +108,10 @@ export function shouldRunCouncil(myName, { date = new Date(), homesDir = HOMES, 
 
 // Fleet health, for `sento doctor`. Every check here maps to a real bug that ran
 // silently in production: isolated fleets, a council that never ran, an empty ledger.
-export function fleetHealth(myName, homesDir = HOMES) {
-  const agents = discoverAgents(homesDir);
-  const fleetDir = resolveFleetDir(homesDir);
+export function fleetHealth(myName) {
+  const fleetDir = resolveFleetDir();
+  registerSelf(myName, fleetDir);
+  const agents = discoverAgents(fleetDir);
   const issues = [];
 
   const isolated = agents.length > 1 && !fleetDir.startsWith(SHARED_FLEET_DIR) && !process.env.SENTO_FLEET_DIR;

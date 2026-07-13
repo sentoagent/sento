@@ -6,9 +6,9 @@ import { log } from "../utils/logger.js";
 import {
   renderDreamPrompt, renderSelfTemplate, renderDreamingSection,
   renderConsolidatePrompt, renderCouncilPrompt, renderFleetSeed,
-  renderCouncilGuard,
+  renderCouncilGuard, renderFleetElect,
 } from "../templates/dream.js";
-import { discoverAgents, resolveFleetDir, electCurator } from "../utils/fleet.js";
+import { discoverAgents, resolveFleetDir, electCurator, registerSelf } from "../utils/fleet.js";
 
 // Scaffolds the Dream Engine + Fleet Brain + weekly consolidation. Idempotent +
 // non-destructive — SELF.md and evolving files are never clobbered, so it's safe
@@ -54,10 +54,17 @@ export async function setupDream(config) {
   fs.writeFileSync(path.join(workspace, "consolidate-prompt.txt"), renderConsolidatePrompt());
   fs.writeFileSync(path.join(workspace, "council-prompt.txt"), renderCouncilPrompt(fleetDir));
 
-  // Self-electing council guard — same script on every agent, only the curator acts.
+  // Self-electing council: same guard on every agent, only the curator acts.
+  // The election is a separate .js file — never inlined in bash (that path ships
+  // "unexpected EOF" to every agent and nobody notices until no curator is elected).
+  fs.writeFileSync(path.join(workspace, "fleet-elect.js"), renderFleetElect());
   const guardPath = path.join(workspace, "fleet-council.sh");
   fs.writeFileSync(guardPath, renderCouncilGuard(config, fleetDir));
   fs.chmodSync(guardPath, 0o755);
+
+  // Announce ourselves in the shared registry so siblings can find us. This is what
+  // makes "add a 10th agent and it joins the fleet" true with zero configuration.
+  registerSelf(config.agentName, fleetDir);
 
   // Ensure CLAUDE.md carries the CURRENT Dreaming & Growth section (fleet-read + ledger).
   // Replace any older block so a `sento update` upgrades it in place.
@@ -87,8 +94,7 @@ export async function setupDream(config) {
       // (deterministic, monthly rotation) so exactly one acts and the rest exit silently.
       // Nobody designates anything; adding/removing an agent reshuffles the rotation itself.
       keep.push(`30 4 * * 0 ~/workspace/fleet-council.sh`);
-      keep.filter((l) => !l.includes("council-prompt.txt")); // drop the old designated-council line
-      const newCron = keep.filter((l) => !l.includes("council-prompt.txt")).join("\n") + "\n";
+      const newCron = keep.join("\n") + "\n";
       await run("bash", ["-c", `echo '${newCron.replace(/'/g, "'\\''")}' | crontab -`]);
       log.success("Dreams scheduled (nightly 03:55 + weekly consolidation + self-electing fleet council)");
     } catch {
