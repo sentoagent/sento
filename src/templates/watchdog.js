@@ -55,13 +55,13 @@ fi
 # reboot all 10 agents came up with no bridge and sat silent for hours; the only reason
 # anyone found out was a human saying "they're offline".
 #
-# Cause: the channel plugin's .mcp.json ships a RELATIVE `"command": "bun"`, which does
+# Cause: the channel plugin's .mcp.json ships a RELATIVE "command": "bun", which does
 # not resolve at MCP spawn time (clawmem and playwright survived precisely because they
 # use absolute/cached commands). A plugin update rewrites that file, so the relative path
 # comes back — this guard repairs it and restarts, rather than trusting it to stay fixed.
 if pgrep -u "$(whoami)" -f 'claude --dangerously' >/dev/null 2>&1; then
-  if ! pgrep -u "$(whoami)" -f 'discord/\|telegram/\|slack/' >/dev/null 2>&1; then
-    PREV_B=$(cat "/tmp/sento-watchdog-${SESSION}.nobridge" 2>/dev/null || echo 0)
+  if ! pgrep -u "$(whoami)" -f 'discord/|telegram/|slack/|imessage/' >/dev/null 2>&1; then
+    PREV_B=$(cat "/tmp/sento-watchdog-\${SESSION}.nobridge" 2>/dev/null || echo 0)
     if [ "$PREV_B" -ge 1 ]; then
       for MCPJSON in "$HOME"/.claude/plugins/cache/claude-plugins-official/*/*/.mcp.json; do
         [ -f "$MCPJSON" ] || continue
@@ -72,12 +72,12 @@ if pgrep -u "$(whoami)" -f 'claude --dangerously' >/dev/null 2>&1; then
       done
       kill "$(pgrep -u "$(whoami)" -f 'claude --dangerously' | head -1)" 2>/dev/null
       echo "$(date): $SESSION - NO CHANNEL BRIDGE (agent was mute). Restarted to respawn it." >> "$LOG"
-      rm -f "/tmp/sento-watchdog-${SESSION}.nobridge"
+      rm -f "/tmp/sento-watchdog-\${SESSION}.nobridge"
       exit 0
     fi
-    echo 1 > "/tmp/sento-watchdog-${SESSION}.nobridge"
+    echo 1 > "/tmp/sento-watchdog-\${SESSION}.nobridge"
   else
-    rm -f "/tmp/sento-watchdog-${SESSION}.nobridge"
+    rm -f "/tmp/sento-watchdog-\${SESSION}.nobridge"
   fi
 fi
 
