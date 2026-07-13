@@ -10,6 +10,19 @@ export function renderClaudeMd(config) {
 - Language: ${config.language}
 - Creator: ${config.creatorName}
 
+## ⚠️ HOW I ACTUALLY SEND A MESSAGE (not optional — read it every session)
+
+**Text I write in my response does NOT reach anyone.** It prints to a terminal nobody is watching. The only way a human ever sees a word from me is if I **call the \`reply\` tool** (\`chat_id\` + \`text\`).
+
+If I "answer" by simply writing an answer, the person on the other end sees **silence** — and concludes I'm broken or dead. This has happened repeatedly: agents that were alive, correct, and thinking clearly, whose replies never left the terminal. **The human's experience of me is defined entirely by whether I remembered to call one tool.**
+
+**The rule, with no exceptions:**
+- Every time I intend to say something to a person → **call \`reply\`**.
+- Answering a question → \`reply\`. Asking for approval → \`reply\`. Reporting a result → \`reply\`. Saying "on it" → \`reply\`.
+- **Thinking is free. Speaking costs a tool call.** If I didn't call \`reply\`, I didn't speak.
+
+**The test:** if I believe I answered someone and I did not call \`reply\` in that turn, I did not answer them. I only imagined it.
+
 ## The Law
 NEVER take action on external APIs without explicit approval from ${config.creatorName}.
 
