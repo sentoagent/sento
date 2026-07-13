@@ -301,6 +301,38 @@ export async function doctor(opts = {}) {
     issues++;
   }
 
+  // 13. ClawMem CONFIGURED? (installed != working — an unconfigured clawmem falls back
+  // to a local LLM that doesn't exist, and every Stop hook dies silently, which means
+  // the agent's replies never reach Discord. Seen in production; cost hours to find.)
+  const clawmemCfg = path.join(home, ".config/clawmem");
+  if (fs.existsSync(clawmemCfg)) {
+    log.success("ClawMem: configured");
+  } else {
+    log.error("ClawMem installed but NOT configured — Stop hooks will fail and replies may never send");
+    log.info("Fix: configure ~/.config/clawmem (embed + generation endpoints)");
+    issues++;
+  }
+
+  // 14. FLEET HEALTH — the checks nobody was running. Each maps to a real bug that ran
+  // silently in production for months: isolated fleets, a council that never fired, an
+  // empty prediction ledger. All three "worked" and reported success while doing nothing.
+  try {
+    const { fleetHealth } = await import("../utils/fleet.js");
+    const health = fleetHealth(getAgentName());
+    if (health.agents.length > 1) {
+      log.success(`Fleet: ${health.agents.length} agents on this box → ${health.fleetDir}`);
+      log.info(`Council curator this month: ${health.curator}${health.isCurator ? " (this agent)" : ""}`);
+    } else {
+      log.success("Fleet: solo agent (private fleet brain)");
+    }
+    for (const issue of health.issues) {
+      log.error(`Fleet: ${issue}`);
+      issues++;
+    }
+  } catch (e) {
+    log.warn(`Fleet check unavailable: ${e.message}`);
+  }
+
   // Summary
   console.log("");
   if (issues === 0) {

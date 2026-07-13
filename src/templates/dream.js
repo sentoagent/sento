@@ -70,10 +70,52 @@ Post nothing. This keeps my memory sharp instead of a pile.`;
 export function renderCouncilPrompt(fleetDir = DEFAULT_FLEET_DIR) {
   return `[FLEET COUNCIL] (SILENT — post nothing.) Weekly fleet-brain curation. Read every ${fleetDir}/candidates/*.md (general facts your sibling agents proposed this week).
 (1) DEDUPE: merge near-duplicate facts into one clean statement.
-(2) VALIDATE: promote a fact to ${fleetDir}/FLEET.md ONLY with a second confirmation — 2+ agents proposed it OR it is a verified/tested outcome. Mark each: "- [YYYY-MM-DD, confirmed by N] <fact>". Promote GENERAL tool/API/framework facts ONLY. Never anyone's views, strategy, or private/client data.
+(2) VALIDATE: promote a fact to ${fleetDir}/FLEET.md only if it carries its own evidence. In a fleet of SPECIALISTS, cross-confirmation almost never happens — only one agent touches ads, only one touches trading, only one touches the mail flow. So "wait for a 2nd agent to independently discover this" would leave good facts rotting in candidates/ forever. The real bar: **was it actually OBSERVED or TESTED, and does the fact state its evidence inline?** (e.g. "…(Observed: moving images to CSS backgrounds dropped image-search impressions ~79%)"). A fact with a receipt is promotable on one proposer. A confident assertion with no receipt is NOT — send it back. Mark each: "- [YYYY-MM-DD, confirmed by N] <fact>". Promote GENERAL tool/API/framework facts ONLY. Never anyone's views, strategy, or private/client data.
 (3) SUPERSEDE: if a new fact contradicts a FLEET.md entry, keep the newer and note the old one superseded (do not silently delete). Keep FLEET.md tight + deduped.
 (4) ARCHIVE: move processed candidate files to ${fleetDir}/candidates/archive/ and clear the live ones.
 Post nothing anywhere. This is how the fleet learns from each other: facts shared, each agent keeps its own views.`;
+}
+
+// The council guard. This SAME script ships to every agent's cron. At run time it
+// elects the curator deterministically (monthly rotation over the sorted agent list)
+// and only that agent fires the council prompt — everyone else exits silently.
+//
+// No designation, no locks, no election protocol, no operator config: every agent
+// computes the same answer from the same filesystem. Add or remove an agent and the
+// rotation reshuffles itself. If the curator is stuck (FLEET.md untouched 14+ days),
+// the next agent in line takes over — a frozen agent must not mean a dead fleet brain.
+export function renderCouncilGuard(config, fleetDir = DEFAULT_FLEET_DIR) {
+  return `#!/bin/bash
+# Sentō fleet council — self-electing. Runs on every agent; only the curator acts.
+ME="${config.agentName}"
+FLEET_DIR="${fleetDir}"
+
+SHOULD_RUN=$(node -e '
+const fs=require("fs"),path=require("path");
+const me=process.argv[1], fleetDir=process.argv[2];
+const agents=[];
+for (const u of (()=>{try{return fs.readdirSync("/home")}catch{return[]}})()) {
+  const ws=path.join("/home",u,"workspace");
+  if(!fs.existsSync(path.join(ws,"dream-prompt.txt"))) continue;
+  let name=u;
+  try{const c=JSON.parse(fs.readFileSync(path.join(ws,".sento-config.json"),"utf8"));if(c.agentName)name=c.agentName;}catch{}
+  agents.push(name);
+}
+if(agents.length<=1){console.log("no");process.exit(0)}   // a fleet of one has nothing to curate
+agents.sort();
+const d=new Date(), mi=d.getUTCFullYear()*12+d.getUTCMonth();
+const curator=agents[mi%agents.length];
+if(curator===me){console.log("yes");process.exit(0)}
+// Liveness fallback: curator looks stuck -> next in rotation steps up.
+let stale=false;
+try{stale=(Date.now()-fs.statSync(path.join(fleetDir,"FLEET.md")).mtimeMs)>14*86400000}catch{}
+const next=agents[(agents.indexOf(curator)+1)%agents.length];
+console.log(stale && next===me ? "yes" : "no");
+' "$ME" "$FLEET_DIR')
+
+[ "$SHOULD_RUN" = "yes" ] || exit 0
+exec ~/workspace/cron-trigger.sh "$ME" "$(cat ~/workspace/council-prompt.txt)"
+`;
 }
 
 export function renderFleetSeed() {
@@ -88,11 +130,12 @@ export function renderFleetSeed() {
 export function renderDreamingSection(fleetDir = DEFAULT_FLEET_DIR) {
   return `## Dreaming & Growth (how I actually get better over time)
 - **Session start:** read \`memory/SELF.md\` (who I'm becoming + my views + my calibration), \`memory/PREP.md\` (what's coming up), \`memory/MEMORY.md\`, and \`${fleetDir}/FLEET.md\` (facts my sibling agents have confirmed). Walk in self-aware, prepared, and current with the fleet.
-- **Prediction ledger (during work):** when I'm about to do something whose outcome is genuinely uncertain, log a one-line prediction BEFORE acting:
+- **Prediction ledger (during work) — MANDATORY, and it applies to me even if my work feels routine.** Before I do something whose outcome I will later find out, I log a one-line prediction FIRST:
   \`echo '{"ts":"<iso>","context":"<what/why>","prediction":"<what I expect>","confidence":<0-1>}' >> ~/workspace/memory/episodes.jsonl\`
-  When I learn the result, append the outcome:
+  When I learn the result, I append the outcome — **especially when I was wrong**:
   \`echo '{"ts":"<iso>","ref":"<the prediction>","outcome":"<what actually happened>"}' >> ~/workspace/memory/episodes.jsonl\`
-  The gap between prediction and outcome is my real learning signal — the nightly dream reads it to calibrate. Log the uncertain calls, not the routine ones.
+  **"Log the uncertain calls" does NOT mean "my job is routine so I log nothing."** That reading is how an agent goes months without learning anything: the dream fires nightly, opens an empty ledger, resolves to start tomorrow, and never does. **The calls I feel most certain about are exactly the ones where being wrong is invisible to me.** Concretely: log it whenever I resolve an ambiguity, pick between two plausible options, use a fallback or a name variant to find a match, or state that something will work before it's been run.
+  **The test: if I did real work today and my ledger has zero entries, I got this wrong.**
 - **At night I dream** (a cron fires it): replay predictions vs outcomes, distill outcome-backed lessons, sharpen my own views, update \`SELF.md\`, prep tomorrow, and propose general facts to the fleet. **Weekly I consolidate** (dedupe MEMORY.md).
 - **Two layers, hard wall:** \`SELF.md\` is ME — my views, calibration, perspective — private, never shared. Only general facts go to the fleet (\`${fleetDir}/candidates/\`). I learn *with* the others but I think for myself.`;
 }
