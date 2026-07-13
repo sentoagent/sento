@@ -47,6 +47,40 @@ if echo "\$OUTPUT" | grep -qE "Switch model\\?|Do you want to proceed|Yes, and d
   exit 0
 fi
 
+
+# ─── Channel-bridge guard ───
+# An agent whose channel MCP bridge failed to spawn is ALIVE, healthy, reasoning
+# clearly — and completely MUTE. Nothing used to notice: this watchdog only checked the
+# guardian and counted messages, never whether the agent could actually TALK. On a host
+# reboot all 10 agents came up with no bridge and sat silent for hours; the only reason
+# anyone found out was a human saying "they're offline".
+#
+# Cause: the channel plugin's .mcp.json ships a RELATIVE `"command": "bun"`, which does
+# not resolve at MCP spawn time (clawmem and playwright survived precisely because they
+# use absolute/cached commands). A plugin update rewrites that file, so the relative path
+# comes back — this guard repairs it and restarts, rather than trusting it to stay fixed.
+if pgrep -u "$(whoami)" -f 'claude --dangerously' >/dev/null 2>&1; then
+  if ! pgrep -u "$(whoami)" -f 'discord/\|telegram/\|slack/' >/dev/null 2>&1; then
+    PREV_B=$(cat "/tmp/sento-watchdog-${SESSION}.nobridge" 2>/dev/null || echo 0)
+    if [ "$PREV_B" -ge 1 ]; then
+      for MCPJSON in "$HOME"/.claude/plugins/cache/claude-plugins-official/*/*/.mcp.json; do
+        [ -f "$MCPJSON" ] || continue
+        if grep -q '"command": *"bun"' "$MCPJSON"; then
+          sed -i "s|\"command\": *\"bun\"|\"command\": \"$HOME/.bun/bin/bun\"|" "$MCPJSON"
+          echo "$(date): $SESSION - repaired relative bun path in $(basename $(dirname $MCPJSON))" >> "$LOG"
+        fi
+      done
+      kill "$(pgrep -u "$(whoami)" -f 'claude --dangerously' | head -1)" 2>/dev/null
+      echo "$(date): $SESSION - NO CHANNEL BRIDGE (agent was mute). Restarted to respawn it." >> "$LOG"
+      rm -f "/tmp/sento-watchdog-${SESSION}.nobridge"
+      exit 0
+    fi
+    echo 1 > "/tmp/sento-watchdog-${SESSION}.nobridge"
+  else
+    rm -f "/tmp/sento-watchdog-${SESSION}.nobridge"
+  fi
+fi
+
 # ─── Count signals ───
 INCOMING=$(echo "\$OUTPUT" | grep -c "← discord\\|← telegram\\|← slack\\|← imessage")
 REPLIES=$(echo "\$OUTPUT" | grep -c "discord - reply\\|telegram.*reply\\|slack.*reply")
